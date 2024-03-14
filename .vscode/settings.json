@@ -1,6 +1,8 @@
 {
-  "masmtasm.ASM.mode": "single file",
+  "masmtasm.ASM.mode": "workspace",
   "masmtasm.ASM.actions": {
+    
+
 
     "TASM": {
       "baseBundle": "<built-in>/TASM.jsdos",
@@ -10,7 +12,7 @@
       "run": [
         "TASM ${file}",
         "TLINK ${filename}",
-        ">${filename} > test.in"
+        ">${filename} < test.in"
       ],
       "debug": [
         "TASM /zi ${file}",
@@ -27,7 +29,7 @@
       "run": [
         "masm ${file};",
         "link ${filename};",
-        ">${filename}"
+        ">${filename} < test.in"
       ],
       "debug": [
         "masm ${file};",
