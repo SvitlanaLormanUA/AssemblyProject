@@ -2,78 +2,82 @@
 .stack 100h
 
 .data
-  filename db 'test.in', 0
-  buffer_size equ 64
-  buffer db buffer_size dup(?)   
-  symbols db 64 dup(?)           ; Assuming maximum of 64 symbols
+    filename    db  'input.in', 0
+    buffer_size equ 64
+    buffer      db  buffer_size dup(?)
 
 .code
 main proc
-  ; Open file for reading
-  mov ah, 3Dh               ; DOS function for opening file
-  lea dx, filename          ; Address of filename string
-  int 21h                   ; Call DOS service
+                mov  ax, @data
+                mov  ds, ax
 
-  ; Error handling (add appropriate actions):
-  jc file_error
+    ; Відкриття файлу для читання
+                mov  ah, 3Dh            ; Функція для відкриття файлу
+                lea  dx, filename       ; Адреса рядка з ім'ям файлу
+                int  21h                ; Виклик DOS сервісу
 
-  mov bx, ax                ; Store file descriptor in bx
+    ; Перевірка на помилку при відкритті файлу
+                jc   file_error
 
-  ; Read data from file into buffer
-  mov ah, 3Fh               ; DOS function for reading
-  mov cx, buffer_size       ; Buffer size
-  lea dx, buffer            ; Address of buffer
-  int 21h                   ; Call DOS service
+                mov  bx, ax             ; Збереження дескриптора файлу в bx
 
-  ; Store symbols from buffer into memory
-  mov si, offset buffer     ; Point to the beginning of the buffer
-  mov di, offset symbols    ; Point to the beginning of the symbols array
-  mov cx, buffer_size       ; Number of symbols to read
-  rep movsb                 ; Copy symbols from buffer to memory
+    ; Читання даних з файлу в стек
+    read_loop:  
+                mov  ah, 3Fh            ; Функція для читання з файлу
+                mov  cx, buffer_size    ; Розмір буфера
+                lea  dx, buffer         ; Адреса буфера
+                int  21h                ; Виклик DOS сервісу
 
-  mov ah, 3Eh               ; DOS function for closing file
-  int 21h                   ; Call DOS service
+    ; Перевірка на кінець файлу
+                jz   end_reading
 
-  ; Sort symbols in memory
-  mov cx, buffer_size       ; Number of symbols to sort
-  dec cx                    ; Start sorting from the second symbol
-outer_loop:
-  mov si, offset symbols    ; Point to the beginning of the symbols array
-inner_loop:
-  mov al, [si]        ; Load current symbol
-  mov ah, [si+1]      ; Load next symbol
-  cmp al, ah          ; Compare current symbol with next symbol
-  jbe no_swap           ; **Changed from jbe to jg for ascending sort**
-  mov [si], ah        ; Swap symbols
-  mov [si+1], al
-no_swap:
-  add si, 1                 ; Move to next pair of symbols
-  loop inner_loop           ; Continue inner loop until all pairs are compared
-  loop outer_loop           ; Continue outer loop until all symbols are sorted
+    ; Занесення даних у стек
+                push dx
+                jmp  read_loop
 
-  ; Print the sorted symbols from memory
-  mov si, offset symbols    ; Point to the beginning of the symbols array
-print_loop:
-  mov ah, 02h               ; DOS function for displaying character
-  mov dl, [si]              ; Load symbol from memory
-  int 21h                   ; Call DOS service to display
-  inc si                    ; Move to the next symbol
-  loop print_loop           ; Continue printing until all symbols are printed
+    end_reading:
+    ; Закриття файлу
+                mov  ah, 3Eh            ; Функція для закриття файлу
+                int  21h                ; Виклик DOS сервісу
 
-  ; Exit program
-  mov ah, 4Ch               ; DOS function for program termination
-  int 21h                   ; Call DOS service
+    ; Сортування даних у стеку
+                mov  si, sp             ; Адреса стеку
+                mov  di, sp             ; Копіюємо адресу стеку в di для порівняння
+    sort_loop:  
+                mov  cx, buffer_size    ; Розмір стеку
+                mov  ax, di             ; Починаємо порівнювати з першим елементом
+                add  ax, 2              ; Порівнювати з наступним елементом
+    inner_loop: 
+                mov  bx, ax
+                mov  dl, [bx]
+                cmp  dl, [bx-2]
+                jae  not_swap
+                mov  al, [bx]
+                xchg al, [bx-2]
+                mov  [bx], al
+    not_swap:   
+                sub  ax, 2
+                cmp  ax, si
+                jne  inner_loop
+                sub  di, 2
+                cmp  di, si
+                jne  sort_loop
 
-file_error:
-  ; Handle file opening error (e.g., display error message)
-  mov ah, 9                 ; DOS function for displaying string
-  lea dx, error_message     ; Address of error message string
-  int 21h                   ; Call DOS service
-  jmp exit_program          ; Jump to program termination
+    ; Виведення відсортованого стеку
+    print_loop: 
+                mov  ah, 02h            ; Функція для виведення на екран
+                pop  dx                 ; Поп зі стеку
+                int  21h                ; Виклик DOS сервісу
+                cmp  sp, si             ; Перевірка на кінець стеку
+                jnz  print_loop
 
-exit_program:
-  ; Additional actions before program terminates (if needed)
+    ; Вихід з програми
+                mov  ah, 4Ch            ; Функція для завершення програми
+                int  21h                ; Виклик DOS сервісу
 
-error_message db 'Помилка при відкритті файлу!', 0
-end main ;close file
+    file_error: 
+    ; Обробка помилки при відкритті файлу
+    ; Додайте відповідні дії тут
 
+main endp
+end main
