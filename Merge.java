@@ -1,6 +1,6 @@
 import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.*;
 
 public class Merge {
@@ -9,22 +9,17 @@ public class Merge {
     private static Map<String, Integer> map;
 
     public static void main(String[] args) throws IOException {
-        System.out.println("Вводьте: " + "\n" + "Коли захочете припинити введення, то введіть: end");
-        getValue();
+        System.out.println("Читання даних з файлу...");
+        readFile("input.txt");
+        calculateAverageValues();
     }
 
-    public static void getValue() throws IOException {
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    public static void readFile(String filename) throws IOException {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
         map = new HashMap<>();
-        for (int i = 0; i < MAX_LINES; i++) {
-            String line = br.readLine();
-            if (line.equals("end")) {
-                break;
-            }
-            if (line.isEmpty()) {
-                System.err.println("Ви ввели пустий рядок");
-                continue;
-            }
+        String line;
+        int lineCount = 0;
+        while ((line = br.readLine()) != null && lineCount < MAX_LINES) {
             StringTokenizer st = new StringTokenizer(line, " ");
             String key = st.nextToken();
             if (key.length() > 15) {
@@ -49,9 +44,9 @@ public class Merge {
                 continue;
             }
             map.put(key, val);
+            lineCount++;
         }
-        System.out.println(map);
-        calculateAverageValues();
+        br.close();
     }
 
     public static void calculateAverageValues() {
@@ -100,17 +95,17 @@ public class Merge {
         int n1 = mid - left + 1;
         int n2 = right - mid;
 
-        int[] L = new int[n1];
+        double[] L = new double[n1];
         String[] LKeys = new String[n1];
         for (int i = 0; i < n1; ++i) {
-            L[i] = (int) arr[left + i];
+            L[i] = arr[left + i];
             LKeys[i] = keys[left + i];
         }
 
-        int[] R = new int[n2];
+        double[] R = new double[n2];
         String[] RKeys = new String[n2];
         for (int j = 0; j < n2; ++j) {
-            R[j] = (int) arr[mid + 1 + j];
+            R[j] = arr[mid + 1 + j];
             RKeys[j] = keys[mid + 1 + j];
         }
 
@@ -143,5 +138,4 @@ public class Merge {
             k++;
         }
     }
-
-    }
+}
