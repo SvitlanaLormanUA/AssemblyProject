@@ -2,205 +2,195 @@
 .stack 100h
 
 .data
-    keyArray db 16000 dup(?)  ; 2 * 8000
-    averageArray dw 16000 dup(?) ; 2 * 8000
+    keyArray db 16000 dup(?)      ; 2 * 8000
+    averageArray dw 16000 dup(?)  ; 2 * 8000
     counter dw ?
-    totalValues dd ?
-    sum dw ?
     keyLength dw ?
     value dw ?
     key db 16 dup(?)
+    oneChar db ?
     CR db 13, 10, '$'
-    fileName db "test.in", 0  ; Ім'я файлу
-    successMessage db "Reading file completed successfully.", 0Dh, 0Ah, '$'
+    successMessage db "Reading input completed successfully.", 13, 10, '$'
+    maxRows equ 10000          ; Максимальна кількість рядків
 
 .code
 main PROC
     mov ax, @data
     mov ds, ax
 
-    call readInputFromFile
+    call read_next
     call groupAndSort
-    call printOutput
+    call printString          ; Вивід результатів
 
     mov ax, 4C00h
     int 21h
 main ENDP
 
-readInputFromFile PROC
-    mov ah, 3Dh         ; відкриважм файл
-    lea dx, fileName    ; Завантажити ім'я файлу
+read_next:
+      mov ah, 3Fh
+    mov bx, 0h  ; stdin handle
+    mov cx, 1   ; 1 byte to read
+    mov dx, offset oneChar   ; read to ds:dx 
+    int 21h   ;  ax = number of bytes read
+    or ax,ax
+    jnz read_next
+
+endReading:
+    ; Display success message
+    mov ah, 02h         ; Print string function
+    lea dx, successMessage
     int 21h
-   jnc noReadError  ; Перевірити, чи не сталася помилка читання, якщо було безпечне читання
-   jmp readError    ; Перейти до обробки помилки, якщо сталася помилка читання
 
-    mov bx, ax          ; Зберегти дескриптор файлу
-
-    mov cx, 10000       ; Максимальна кількість рядків для читання
-    mov counter, 0
-noReadError:
-
-    ; Відобразити повідомлення про успішне завершення читання
-    mov ah, 09h          ; Функція виведення рядка
-    lea dx, successMessage  ; Завантаження адреси рядка successMessage
-    int 21h              ; Виклик переривання DOS для виведення рядка
-
-
-    ; Продовжити виконання програми
     ret
 
-readLoop:
-    mov ah, 3Fh         ; Читати з файлу
-    mov bx, ax          ; Дескриптор файлу
-    mov cx, 1           ; Читати один байт
-    lea dx, key
-    int 21h
-    jc readError
 
-    cmp al, 13          ; Перевірка на CR
-    je processLine
-    cmp al, 10          ; Перевірка на LF
-    je processLine
-    cmp al, ' '         ; Перевірка на пробіл
-    je processLine
+processInput:
+    ; Separate key and value
+    mov si, offset key + 2       ; SI points to the beginning of the input string
+    mov di, offset keyArray      ; DI points to keyArray
+    mov cx, 16                   ; Maximum length of key
+    xor ax, ax                   ; Clear AX
 
-    ; Читати значення
-    mov ah, 3Fh         ; Читати з файлу
-    mov bx, ax          ; Дескриптор файлу
-    mov cx, 1           ; Читати один байт
-    lea dx, value
-    int 21h
-    jc readError
+getChar:
+    lodsb                        ; Load character from SI into AL, increment SI
+    cmp al, ' '                  ; Check if space is found
+    je processValue              ; If space, process the value
+    cmp al, 13                   ; Check for CR
+    je saveKey                   ; If CR, save the key
+    stosb                        ; Store character into keyArray
+    loop getChar                 ; Loop until 16 characters are read
+    jmp endProcessInput          ; Jump to the end if key exceeds 16 characters
 
-    sub al, '0'
-    mov value, ax
+processValue:
+    ; Convert string to integer
+    mov si, offset key + 2       ; SI points to the beginning of the value
+    call str2int                ; Convert string to integer
+    mov value, ax               ; Store the integer value
 
-    jmp readLoop
+    ; Process the key-value pair
+    call processKeyValuePair
+    jmp endProcessInput
 
-processLine:
-    ; Розбір рядка, що складається з ключа та значення
-    lea si, keyArray       ; Завантаження адреси масиву keyArray в SI
-    mov cx, counter        ; Завантаження лічильника в CX
+saveKey:
+    mov bx, offset key + 2       ; BX points to the beginning of the key
+    sub si, bx                   ; Calculate the length of the key
+    mov keyLength, si            ; Store the length of the key
+    jmp endProcessInput
+
+endProcessInput:
+    ret
+
+str2int PROC
+    ; Convert ASCII string to integer
+    xor ax, ax                   ; Clear AX
+    xor cx, cx                   ; Clear CX
+nextDigit:
+    lodsb                        ; Load character into AL, increment SI
+    cmp al, 0                    ; Check for end of string
+    je done                      ; If end of string, done
+    sub al, '0'                  ; Convert ASCII character to number
+    mov bx, 10                   ; Multiply AX by 10
+    mul bx                       ; AX = AX * 10
+    add ax, cx                   ; Add CX to AX
+    mov cx, ax                   ; Store AX in CX
+    jmp nextDigit                ; Process next character
+done:
+    mov ax, cx                   ; Move result to AX
+    ret
+str2int ENDP
+
+processKeyValuePair:
+    ; Process the key-value pair
+    lea si, keyArray             ; SI points to keyArray
+    mov cx, counter              ; Load counter into CX
+
 searchLoop:
-    mov di, si             ; Зберігання поточної адреси keyArray в DI
-    lodsw                  ; Завантаження ключової довжини в AX та значення у BX
-    cmp ax, keyLength      ; Порівняння ключової довжини з поточною довжиною ключа
-    jne notFound           ; Якщо довжини не співпадають, перейти до notFound
-    mov dx, si             ; Зберегти поточну адресу в DX
-    add si, ax             ; Перейти до значення в keyArray
-    add si, 2              ; Перейти до наступного запису в keyArray
-   cmp byte ptr [si], 0   ; Перевірка, чи наступний ключ є нульовим (закінченням масиву)
-    je foundKey           ; Якщо наступний ключ є нульовим, значить поточний ключ є унікальним
-    mov si, dx            ; Відновлення поточної адреси ключа у випадку ненадачі
-    add si, ax            ; Перейти до наступного запису в keyArray
-    add si, 2             ; Перейти до наступного запису в keyArray
-    loop searchLoop       ; Продовжити пошук
+    mov di, si                   ; Save current address of keyArray in DI
+    lodsw                        ; Load key length into AX and value into BX
+    cmp ax, keyLength            ; Compare key length with current key's length
+    jne notFound                 ; If lengths don't match, move to next key
+    mov dx, si                   ; Save current address of keyArray in DX
+    add si, ax                   ; Move SI to the value of the current key
+    add si, 2                    ; Move SI to the next entry in keyArray
+    cmp byte ptr [si], 0         ; Check if the next key is null
+    je foundKey                  ; If next key is null, current key is unique
+    mov si, dx                   ; Restore SI to current key's address
+    add si, ax                   ; Move SI to the next entry in keyArray
+    add si, 2                    ; Move SI to the next entry in keyArray
+    loop searchLoop              ; Repeat search loop until all keys are checked
 
 notFound:
-    ; Додавання нового ключа та його значення в масиви keyArray та averageArray
-    stosw                  ; Зберегти довжину ключа в keyArray
-    mov ax, value          ; Зберегти значення в AX
-    stosw                  ; Зберегти значення в averageArray
-    inc counter            ; Збільшити лічильник унікальних ключів
-    jmp readLoop           ; Перейти до наступного рядка з файлу
-
-foundKey:
-    ; Обчислення середнього значення для поточного ключа
-    mov ax, [si+2]         ; Завантажити попередню суму з averageArray в AX
-    add ax, value          ; Додати нове значення до суми
-    mov [si+2], ax         ; Зберегти нову суму в averageArray
-    inc word ptr [si+4]   ; Збільшити лічильник значень для поточного ключа
-    jmp readLoop           ; Перейти до наступного рядка з файлу
-
-
-closeFile:
-    mov ah, 3Eh         ; Закрити файл
-    mov bx, ax          ; Дескриптор файлу
-    int 21h
+    ; If key is not found, add it to keyArray
+    stosw                        ; Store key length in keyArray
+    mov ax, value                ; Store value in AX
+    stosw                        ; Store value in averageArray
+    inc counter                  ; Increment counter for unique keys
     ret
 
-readError:
-    ; Обробка помилки читання файлу
-    mov ah, 09h           ; Вивід повідомлення
-    lea dx, errorMessage  ; Адреса рядка errorMessage
-    int 21h               ; Виклик переривання DOS для виводу рядка
-    ret                   ; Повернення до головної програми
-
-errorMessage db "Error reading file.", 0Dh, 0Ah, '$'
-
-readInputFromFile ENDP
+foundKey:
+    ; If key is found, update average value
+    mov ax, [si+2]               ; Load previous sum from averageArray to AX
+    add ax, value                ; Add new value to sum
+    mov [si+2], ax               ; Store updated sum in averageArray
+    inc word ptr [si+4]          ; Increment count of values for this key
+    ret
 
 groupAndSort PROC
+    ; Group and calculate averages
     lea si, averageArray
     mov cx, counter
+
 groupAndSortLoop:
     mov ax, [si]
     test ax, ax
     jz nextGroupAndSortLoop
 
-    mov bx, [si+2]  ; Кількість значень для цього ключа
+    mov bx, [si+2]               ; Count of values for this key
     mov dx, ax
     cwd
-    idiv bx  ; Розрахувати середнє
+    idiv bx                      ; Calculate average
     mov [si], ax
 
 nextGroupAndSortLoop:
-    add si, 4  ; Розмір елемента averageArray
+    add si, 4                    ; Move to next entry in averageArray
     loop groupAndSortLoop
 
-    ; Сортування бульбашкою
+    ; Bubble sort
     mov si, averageArray
     mov cx, counter
-    dec cx
+    dec cx                        ; Counter-based loop needs one decrement
+
 outerLoop:
     mov di, si
     mov si, averageArray
+
 innerLoop:
     mov ax, [si]
     cmp ax, [si+4]
     jge noSwap
     xchg ax, [si+4]
     mov [si], ax
+
 noSwap:
     add si, 4
     loop innerLoop
-    add si, di  ; Скинути si на початок масиву
+
+    add si, di                     ; Reset SI to the beginning of the array
     loop outerLoop
 
     ret
 groupAndSort ENDP
 
-printOutput PROC
-    mov si, averageArray
-    mov cx, counter
-printLoop:
-    mov ax, [si]
-    test ax, ax
-    jz nextPrintLoop
-    ; Перетворити середнє у рядок
-    mov bx, 10
-    xor dx, dx
-    div bx
-    add dl, '0'
-    mov [key], dl
-    mov dx, ax
-    add dl, '0'
-    mov [key+1], dl
-    mov dx, offset key
-    call printString
-    mov dx, offset CR
-    call printString
-
-nextPrintLoop:
-    add si, 4
-    loop printLoop
-
-    ret
-printOutput ENDP
-
 printString PROC
-    mov ah, 09h   ; Функція виведення рядка
-    int 21h       ; DOS переривання
+    mov ah, 02h     ; Функція 02h DOS - виведення символа
+    mov si, dx      ; Завантаження адреси рядка в SI
+    printLoop:
+        lodsb        ; Завантаження символу у AL та інкрементування SI
+        test al, al  ; Перевірка, чи досягли кінця рядка (але не нуль-термінатор)
+        jz endPrint  ; Якщо символ дорівнює нулю, завершити друк
+        int 21h      ; Виведення символа, що зберігається в AL
+        jmp printLoop ; Повторити для наступного символу
+    endPrint:
     ret
 printString ENDP
 
