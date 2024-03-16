@@ -45,28 +45,23 @@ checking_eof:
 
 calculate_average:
     ; Calculate sum and count
-    mov cx, 80h
-    lea si, buffer
-    mov sumVal, 0
-    mov countVal, 0
+    mov ax, 7FFFh
+add ax, 0FFFh
+   xor dx,dx       ; DX - 32-bit hi-word
+mov ax, 7FFFh   ; AX - 32-bit lo-word
+add ax, 7FFFh   ; add 16bit signed value
+adc dx, 0       ; note that OF=0! 
+mov dx, 0FFh
+mov ax, 0h
+mov bx, 1500
+div bx  ; DX:AX / 1500, result in ax
+   ; Output average
+     mov cx, 17
+     lea  dx, averageMsg
+    mov ah, 09h       ; DOS function for printing string
+    int 21h           ; DOS interrupt
 
-sumLoop:
-    mov al, [si]
-    add sumVal, ax
-    inc countVal
-    inc si
-    loop sumLoop
-
-    ; Calculate average
-    mov ax, sumVal
-    cwd 
-    idiv countVal
-
-mov ah, 09h        ; DOS function for displaying string
-    lea dx, averageMsg ; Load message for display
-    int 21h            ; Display message
-    ; Output average
-     mov cx, 11
+    mov cx, 11
     lea si, buffer
 outLoop:
     mov dl, [si]
