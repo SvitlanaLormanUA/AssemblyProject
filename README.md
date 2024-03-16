@@ -1,5 +1,5 @@
 # Svitlana Lorman, third option
-This a repository for the Computer Architecture assembly project.
+This is a repository for the Computer Architecture assembly project.
 <ol>
 <li> Read N lines from stdin until EOF appears (maximum 10000 lines). </li>
 Lines are separated EITHER by the sequence of bytes 0x0D and 0x0A (CR LF), or by a single character - 0x0D or 0x0A.
