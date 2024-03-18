@@ -2,108 +2,209 @@
 .stack 100h
 
 .data
-    buffer db 80h dup(?)
-    sumVal dw ?
-    countVal dw ?
+    buffer db 80h dup(?)    ; Буфер для зберігання введених даних
+    sumVal dw ?             ; Змінна для суми значень
+    countVal dw ?           ; Змінна для підрахунку кількості значень
     averageMsg db ' Average value: $'
-    keyBuffer db 16 dup(?)  ; Buffer for storing the key
-    valueBuffer db 8 dup(?) ; Buffer for storing the value
+    keyBuffer db 80h dup(?) ; Буфер для зберігання ключів
+    valueBuffer dw 80h dup(?) ; Буфер для зберігання значень
+    sortedKeyBuffer db 80h dup(?) ; Буфер для зберігання відсортованих ключів
 
 .code
 main proc
     mov ax, @data
     mov ds, ax
 
-    mov ah, 3Fh       ; DOS function for opening a file
-    mov bx, 0         ; File handle (0 = standard input)
-    lea dx, buffer    ; Pointer to buffer
-    mov cx, 80h       ; Number of bytes to read
-    int 21h          ; DOS interrupt
+    mov ah, 3Fh             ; Функція DOS для відкриття файлу (стандартний ввід)
+    mov bx, 0               ; Вказівник файлу (0 = стандартний ввід)
+    lea dx, buffer          ; Вказівник на буфер
+    mov cx, 80h             ; Кількість байт для читання
+    int 21h                 ; DOS переривання
 
     cmp ax, cx
-    jae checking_eof    ; If end of file reached, proceed to checking EOF
-    mov cx, ax       ; Update the count of characters read
+    jae checking_eof        ; Якщо досягнуто кінець файлу, перевірте EOF
+    mov cx, ax              ; Оновіть лічильник прочитаних символів
 
 output:
-    mov ah, 02h      ; DOS function for displaying character
-    mov si, 0        ; Initialize source index to 0
+    mov ah, 02h             ; DOS-функція для виводу символу
+    mov si, 0               ; Ініціалізуємо індекс джерела на 0
 
 print_loop:
-    mov dl, [si]     ; Load character for output
-    int 21h          ; Display character
-    inc si           ; Move to next character
-    loop print_loop  ; Repeat until CX != 0
+    mov dl, [si]            ; Завантажити символ для виводу
+    int 21h                 ; Вивести символ
+    inc si                  ; Перейти до наступного символу
+    loop print_loop         ; Повторюємо, поки CX != 0
 
 checking_eof:
-    ; Check end of file
-    mov ah, 3Eh      ; DOS function for checking EOF
-    mov bx, 0        ; File handle (0 = standard input)
-    int 21h          ; DOS interrupt
+    ; Перевірка кінця файлу
+    mov ah, 3Eh             ; DOS-функція для перевірки EOF
+    mov bx, 0               ; Вказівник файлу (0 = стандартний ввід)
+    int 21h                 ; DOS переривання
 
-    ; If EOF pointer is not equal to 128 (0x80), file has ended
+    ; Якщо EOF не рівний 128 (0x80), файл закінчено
     cmp ax, 80h
-    jne calculate_average ; If EOF, calculate average
+    jne calculate_average   ; Якщо EOF, розрахуйте середнє значення
     jmp exit_program
 
-calculate_average:
-    mov si, offset buffer  ; Set SI to the beginning of the buffer
-    mov di, offset keyBuffer ; Set DI to the beginning of the key buffer
-    mov cx, 80h       ; Initialize CX with the length of the buffer
+parse_buffer:
+    mov al, [si]            ; Завантажити перший символ ключа
+    cmp al, ' '             ; Перевірити, чи символ є пропуском
+    je store_value          ; Якщо пробіл, перейти до зберігання значення
 
-calculate_sum:
-    ; Parse the key
-    mov al, [si]     ; Load the first character of the key
-    cmp al, ' '      ; Check if the character is a space
-    je store_value   ; If space, proceed to storing the value
-
-    mov [di], al     ; Store the character in the key buffer
-    inc si           ; Move to the next character of the key
-    inc di           ; Move to the next position in the key buffer
-    loop calculate_sum ; Repeat until CX != 0
-    jmp exit_program
+    mov [di], al            ; Зберегти символ у буфер ключів
+    inc di                  ; Перейти до наступного положення у буфері ключів
 
 store_value:
-    inc si           ; Move past the space character
-    mov al, [si]     ; Load the first character of the value
-    sub al, '0'      ; Convert ASCII to binary
-; Zero extend to AX
-mov ah, 0     ; Clear AH
-mov al, [si]  ; Load the byte from memory into AL
+    inc si                  ; Пропустити пробіл
+    mov ax, 0               ; Очистити AX
+    mov cx, 0               ; Очистити CX
 
-    add sumVal, ax   ; Add to the sum
-    inc si           ; Move to the next character
-    cmp byte ptr [si], ' '  ; Check if the next character is a space
-    jne store_value  ; If not, continue parsing the value
+convert_value:
+    lodsb                   ; Завантажити наступний символ
+    cmp al, 13              ; Перевірити, чи символ є кінцем рядка
+    je end_conversion       ; Якщо так, закінчити конвертацію
 
-    ; Increment the count of values
-    inc countVal
+    sub al, '0'             ; Конвертувати ASCII у бінарний
+    mov ah, 0               ; Очистити AH
+    mov bx, 10              ; Множник для конвертації
+    mul bx                  ; AX = AL * 10
+    add ax, cx              ; Додати до поточного результату
+    mov cx, ax              ; Зберегти результат
+    jmp convert_value       ; Повторити, поки не буде кінець рядка
 
-    ; Calculate the average
+end_conversion:
+    ; Зберегти значення у буфері значень
+    mov [di], cx            ; Зберегти значення
+    add di, 2               ; Перейти до наступного положення у буфері значень
+
+    ; Оновити змінні для обчислення середнього значення
+    add sumVal, cx          ; Додати до суми
+    inc countVal            ; Збільшити лічильник значень
+
+    ; Перевірка кінця рядка
+    cmp al, 13              ; Перевірити, чи символ є кінцем рядка
+    jne parse_buffer        ; Повернутися до парсингу буфера
+
+calculate_average:
+    ; Обчислення середнього значення
     mov ax, sumVal
-    cwd               ; Sign-extend AX into DX:AX
-    idiv countVal     ; Divide DX:AX by countVal, quotient in AX
+    cwd                      ; Розширити AX у DX:AX
+    idiv countVal            ; Поділити DX:AX на countVal, частка у AX
 
-    ; Output key
-    mov dx, offset keyBuffer ; Load address of key buffer
-    mov ah, 02h       ; DOS function for printing string
-    int 21h           ; DOS interrupt
+    ; Виведення середнього значення
+    mov dx, offset averageMsg ; Завантажити адресу рядка середнього значення
+    mov ah, 09h              ; DOS-функція для друку рядка
+    int 21h                  ; DOS переривання
 
-    ; Output average
-    mov ah, 09h 
-    mov dx, offset averageMsg ; Load address of average message
-        ; DOS function for printing string
-    int 21h           ; DOS interrupt
+    ; Конвертувати AX у ASCII та вивести
+    add dl, '0'              ; Конвертувати у ASCII
+    mov ah, 02h              ; DOS-функція для виводу символу
+    int 21h                  ; DOS переривання
 
-    ; Convert AX to ASCII and print
-      mov cx, 17
-    add dl, '0'       ; Convert to ASCII
-    mov ah, 02h       ; DOS function for displaying character
-    int 21h           ; DOS interrupt
+    jmp sort_keys            ; Перейти до сортування ключів
 
-    jmp exit_program ; Jump to exit program
+sort_keys:
+    ; Сортування ключів (пузирчасте сортування)
+    mov si, offset keyBuffer ; Встановити SI на початок буфера ключів
+    mov di, offset valueBuffer ; Встановити DI на початок буфера значень
+    mov cx, countVal         ; Ініціалізувати CX кількістю значень
+
+outer_loop:
+    mov dx, [di]             ; Завантажити значення
+    mov bx, [di + 2]         ; Завантажити наступне значення
+    cmp dx, bx               ; Порівняти значення
+    jbe no_swap              ; Якщо необхідно, перейти до обміну символами
+
+    ; Обмін ключами
+    mov ax, [si]             ; Завантажити перший ключ
+    mov cx, [si + 16]        ; Завантажити наступний ключ
+    mov [si], cx             ; Перемістити наступний ключ на поточне положення
+    mov [si + 16], ax        ; Перемістити поточний ключ на наступне положення
+
+    ; Обмін значеннями
+    mov ax, dx               ; Завантажити перше значення
+    mov cx, bx               ; Завантажити наступне значення
+    mov [di], cx             ; Перемістити наступне значення на поточне положення
+    mov [di + 2], ax         ; Перемістити поточне значення на наступне положення
+
+sorting_keys:
+    ; Сортування ключів 
+    mov si, offset keyBuffer ; Встановити SI на початок буфера ключів
+    mov cx, countVal         ; Ініціалізувати CX кількістю значень
+
+
+inner_loop:
+    mov al, [di]             ; Завантажити перший символ
+    mov dl, [di + 1]         ; Завантажити наступний символ
+    cmp al, dl               ; Порівняти символи
+    jbe no_swap              ; Якщо необхідно, перейти до обміну символами
+
+    ; Обмін символами за допомогою тимчасового регістра
+    mov bl, al               ; Зберегти поточний символ в BL
+    mov al, dl               ; Перемістити наступний символ на поточне положення
+     mov ah, 02h             ; DOS-функція для виводу символу
+    int 21h                 ; DOS переривання
+
+
+no_swap:
+    add di, 4                ; Перейти до наступного значення
+    add si, 2                ; Перейти до наступного ключа
+    loop outer_loop          ; Повторити, поки CX != 0
+
+    ; Копіювання відсортованих ключів у буфер
+    mov si, offset keyBuffer
+    mov di, offset sortedKeyBuffer
+    mov cx, countVal
+    rep movsw
+
+    ; Виведення відсортованих ключів та значень
+    mov si, offset sortedKeyBuffer
+    mov cx, countVal
+print_sorted_keys:
+    ; Виведення ключа
+    mov dx, si              ; Завантаження адреси ключа
+    mov ah, 09h             ; DOS-функція для виводу рядка
+    int 21h                 ; DOS переривання
+
+    ; Виведення роздільника
+    mov dl, ','             ; Роздільник
+    mov ah, 02h             ; DOS-функція для виводу символу
+    int 21h                 ; DOS переривання
+
+    ; Виведення значення
+    mov ax, [di]            ; Завантаження значення
+    call print_word         ; Вивід значення
+
+    add si, 2               ; Перехід до наступного ключа
+    add di, 2               ; Перехід до наступного значення
+    loop print_sorted_keys  ; Повторити для всіх ключів
+
+
+
+print_word proc
+    ; Переведення двобайтового слова у десятковий формат та вивід його
+    ; AX - значення для виведення
+    push ax                 ; Збереження значення AX
+    mov cx, 10              ; Ділення на 10
+    xor dx, dx              ; Очистка DX
+    div cx                  ; AX = AX / 10 (результат у AL, залишок у AH)
+
+    ; Рекурсивне виведення
+    cmp ax, 0                ; Перевірка, чи досягнуто останнього розряду
+    jz print_last_digit     ; Якщо так, виведення останнього розряду
+    call print_word         ; Виведення наступного розряду
+
+print_last_digit:
+    ; Виведення останнього розряду
+    pop ax                  ; Відновлення значення AX
+    add dl, '0'             ; Конвертація у ASCII
+    mov ah, 02h             ; DOS-функція для виводу символу
+    int 21h                 ; DOS переривання
+    ret
+print_word endp
 
 exit_program:
-    ; Terminate program
+    ; Завершення програми
     mov ax, 4c00h
     int 21h
 
