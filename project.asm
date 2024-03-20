@@ -109,9 +109,9 @@ d2:
                     mov  si, offset keys       ; Set SI to the beginning of the key buffer
 
   sum_loop:         
-                    xor  al, al                     ; Clear AL (accumulator) before loading new value
+                    xor  al, al                     ; Clear AL
                     mov  al, [si]                   ; Load value from key buffer
-                    sub  al, '0'                    ; Convert ASCII to binary
+                   ; sub  al, '0'                    ; Convert ASCII to binary
                     mov  al, byte ptr al            ; Load the byte value from memory address a into the AL register
                     add  ax, ax                     ; Add the byte value in AL to the AX register
  
