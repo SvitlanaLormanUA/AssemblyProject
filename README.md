@@ -8,3 +8,8 @@ Each line is a pair "<key> <value>" (separated by a space), where the key is a t
 <li> Sort using the merge sort algorithm by <average>, and output the key values to stdout from larger to smaller (average desc), each key on a separate line.</li>
 
 </ol>
+
+<h2>TESTING</h2>
+I input the content from the file "test.in" into console to check and test.
+To debug I use "debug ASM" and with F9 look for the errors.
+I don`t exactly know, where the problem is, but I assume it is in the "splitting" keys and values into two arrays is.
