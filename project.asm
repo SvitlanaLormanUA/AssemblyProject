@@ -2,119 +2,106 @@
 .stack 100h
 
 .data
-  buffer db 128 dup(?) ; Buffer for storing input (128 bytes)
-  keys   dw 10000 dup(0) ; Array to store keys (10000 words)
-  values dw 10000 dup(0) ; Array to store values (10000 words, likely needs to be words)
-  keyCount dw 0          ; Number of keys read (initialized to 0)
-  valueCount dw 0          ; Number of values read (initialized to 0, now a word)
-  keyBuffer db 16 dup(?) ; Buffer for storing the currently processed key (16 bytes)
-
+  buffer db 128 dup(?)     ; Buffer for storing input (128 bytes)
+  keys   dw 10000 dup(?)   ; Array to store keys (10000 words)
+  values dw 10000 dup(?)  ; Array to store values (10000 words, assuming they are words)
+  keyCount dw 0            ; Number of keys read (initialized to 0)
+  valueCount dw 0          ; Number of values read (initialized to 0)
+  keyBuffer db 16 dup(?)   ; Buffer for storing the currently processed key (16 bytes)
+  hexBuffer db 5 dup(?)    ; Buffer for storing the hexadecimal representation of values
 
 .code
 main proc
-                    mov  ax, @data                  ; Load data segment address
-                    mov  ds, ax                     ; Initialize data segment
+    mov  ax, @data             ; Load data segment address
+    mov  ds, ax                ; Initialize data segment
 
-                    mov  ah, 3Fh                    ; DOS function for opening a file
-                    mov  bx, 0                      ; File handle (0 = standard input)
-                    lea  dx, buffer                 ; Pointer to buffer
-                    mov  cx, 128                    ; Number of bytes to read
-                    int  21h                        ; DOS interrupt
+    mov  ah, 3Fh               ; DOS function for opening a file
+    mov  bx, 0                 ; File handle (0 = standard input)
+    lea  dx, buffer            ; Pointer to buffer
+    mov  cx, 128               ; Number of bytes to read
+    int  21h                   ; DOS interrupt
 
-                    cmp  ax, cx                     ; Compare bytes read with buffer size
-                    jae  checking_eof               ; If end of file reached, proceed to checking EOF
-                    mov  cx, ax                     ; Update the count of characters read
+    cmp  ax, cx                ; Compare bytes read with buffer size
+    jae  checking_eof          ; If end of file reached, proceed to checking EOF
+    mov  cx, ax                ; Update the count of characters read
 
-                    jmp  ascii_hex
-  ; Jump to convert ASCII to hex
+    jmp  ascii_hex             ; Jump to convert ASCII to hex
 
   checking_eof:     
-  ; Check end of file
-                    mov  ah, 3Eh                    ; DOS function for checking EOF
-                    mov  bx, 0                      ; File handle (0 = standard input)
-                    int  21h                        ; DOS interrupt
+    ; Check end of file
+    mov  ah, 3Eh               ; DOS function for checking EOF
+    mov  bx, 0                 ; File handle (0 = standard input)
+    int  21h                   ; DOS interrupt
 
-  ; If EOF pointer is not equal to 128 (0x80), file has ended
-                    cmp  ax, 80h
-                    je   process_lines               ; If not EOF, convert ASCII to hex
+    ; If EOF pointer is not equal to 128 (0x80), file has ended
+    cmp  ax, 80h
+    je   process_lines         ; If not EOF, convert ASCII to hex
                   
-  ; Otherwise, exit the program
- 
+    ; Otherwise, exit the program
+   
 
 process_lines:
-  mov si, offset buffer ; Set SI to the beginning of the buffer
-  mov di, offset keys   ; Set DI to the beginning of the keys array
-  mov bx, offset values ; Set BX to the beginning of the values array
-  mov cx, 128           ; Initialize CX with the length of the buffer
-  xor ax, ax           ; Clear AX (value accumulator)
+    mov  si, offset buffer     ; Set SI to the beginning of the buffer
+    mov  di, offset keys       ; Set DI to the beginning of the keys array
+    mov  bx, offset values     ; Set BX to the beginning of the values array
+    mov  cx, 128               ; Initialize CX with the length of the buffer
 
 parse_line:
-  mov al, [si]          ; Load the character
-  cmp al, ' '           ; Check if the character is a space
-  je store_value        ; If space, store the value
-  mov [di], al          ; Store the character in the keys array
-  inc di                ; Move to the next position in the keys array
-  jmp next_char          ; Jump to process next character
+    mov  al, [si]              ; Load the character
+    cmp  al, ' '               ; Check if the character is a space
+    je   store_value           ; If space, store the value
+    mov  [di], al              ; Store the character in the keys array
+    inc  di                    ; Move to the next position in the keys array
+    jmp  next_char             ; Jump to process next character
 
 store_value:
-  mov [bx], ax          ; Store the value in the values array
-   mov dx, offset valueCount
-  inc dx       ; Increment value count (assuming values are single bytes)
-  xor ax, ax           ; Clear AX for the next value
-  add bx, 2             ; Move to the next position in the values array (assuming values are words)
-  jmp next_line          ; Jump to process the next line
+    mov  [bx], al              ; Store the character in the values array
+    inc  bx                    ; Move to the next position in the values array
+    inc  valueCount            ; Increment value count
+    jmp  next_char             ; Jump to process next character
 
 next_char:
-  inc si                ; Move to the next character
-  loop parse_line        ; Repeat until CX != 0
+    inc  si                    ; Move to the next character
+    loop parse_line            ; Repeat until CX != 0
 
-next_line:
-  cmp si, offset buffer + 128 ; Check end of buffer
-  jb process_lines      ; If not end, process next line
+    ; Now convert values to hexadecimal
+    mov  si, offset values     ; Set SI to the beginning of the values array
+    mov  di, offset hexBuffer  ; Set DI to the beginning of the hexBuffer
 
-  ; Now perform conversion and other operations here
-  call  ascii_hex ; Convert value to hexadecimal
-  jmp calculate_average  ; (Assuming calculate_average uses converted value)
+convert_values_to_hex:
+    mov  al, [si]              ; Load the value
+    call ascii_hex             ; Convert the value to hexadecimal
+    mov  [di], al               ; Store the hexadecimal character in the hexBuffer
+    inc  di                    ; Move to the next position in the hexBuffer
+    inc  si                    ; Move to the next position in the values array
+    loop convert_values_to_hex ; Repeat until CX != 0
 
-  ascii_hex:        
-                    push cx
-                    mov  ah, 01h
-                    int  21h
-                    sub  al, 30h
-                    cmp  al, 09h
-                    jle  down
-  down:             
-                    mov  cl, 04h
-                    rol  al, cl
-                    mov  ch, al
+    ; Display or use the hexadecimal values as required
+
+    jmp   calculate_average       ; Terminate program
+
+ascii_hex:        
+    push cx
+    mov  ah, 01h
+    int  21h
+    sub  al, 30h
+    cmp  al, 09h
+    jle  down
+down:             
+    mov  cl, 04h
+    rol  al, cl
+    mov  ch, al
                     
-                    mov  ah, 01h
-                    int  21h
-                    sub  al, 30h
-                    cmp  al, 09h
-                    jle  d2
-                    sub  al, 07h
-  d2:               
-                    add  al, ch
-                    pop  cx
-                    jmp  convert_loop               ; Initialize CX with the length of the buffer
-
-  convert_loop:     
-                    xor  al,al
-                    mov  al, [si]                   ; Load the character
-                    sub  al, '0'                    ; Convert ASCII to binary
-                    cmp  al, 9                      ; Check if the character is a digit
-                    jbe  store_hex                  ; If less than or equal to 9, store directly
-                    sub  al, 7                      ; Otherwise, adjust for A-F
-
-  store_hex:        
-                    mov  [di], al                   ; Store the character in the key buffer
-                    inc  di                         ; Move to the next position in the key buffer
-                    inc  si                         ; Move to the next character
-                    loop convert_loop               ; Repeat until CX != 0
-
-                    jmp  calculate_average          ; After converting to hex, calculate average
-
+    mov  ah, 01h
+    int  21h
+    sub  al, 30h
+    cmp  al, 09h
+    jle  d2
+    sub  al, 07h
+d2:               
+    add  al, ch
+    pop  cx
+    ret
   calculate_average:
   ; Initialize sum and count variables
                     mov  ax, 0                      ; Clear AX (sum)
