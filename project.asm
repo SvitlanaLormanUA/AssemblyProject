@@ -76,8 +76,6 @@ convert_values_to_hex:
     inc  si                    ; Move to the next position in the values array
     loop convert_values_to_hex ; Repeat until CX != 0
 
-    ; Display or use the hexadecimal values as required
-
     jmp   calculate_average       ; Terminate program
 
 ascii_hex:        
