@@ -25,7 +25,7 @@ main proc
     jae  checking_eof          ; If end of file reached, proceed to checking EOF
     mov  cx, ax                ; Update the count of characters read
 
-    jmp  ascii_hex             ; Jump to convert ASCII to hex
+    jmp  process_lines         ; Jump to process lines
 
   checking_eof:     
     ; Check end of file
@@ -35,10 +35,9 @@ main proc
 
     ; If EOF pointer is not equal to 128 (0x80), file has ended
     cmp  ax, 80h
-    je   process_lines         ; If not EOF, convert ASCII to hex
+    je   process_lines         ; If not EOF, proceed to process lines
                   
     ; Otherwise, exit the program
-   
 
 process_lines:
     mov  si, offset buffer     ; Set SI to the beginning of the buffer
@@ -46,27 +45,20 @@ process_lines:
     mov  bx, offset values     ; Set BX to the beginning of the values array
     mov  cx, 128               ; Initialize CX with the length of the buffer
 
-parse_line:
+read_and_store:
     mov  al, [si]              ; Load the character
-    cmp  al, ' '               ; Check if the character is a space
-    je   store_value           ; If space, store the value
     mov  [di], al              ; Store the character in the keys array
     inc  di                    ; Move to the next position in the keys array
-    jmp  next_char             ; Jump to process next character
 
-store_value:
+    inc  si                    ; Move to the next character
+    mov  al, [si]              ; Load the character
     mov  [bx], al              ; Store the character in the values array
     inc  bx                    ; Move to the next position in the values array
-    inc  valueCount            ; Increment value count
-    jmp  next_char             ; Jump to process next character
 
-next_char:
     inc  si                    ; Move to the next character
-    loop parse_line            ; Repeat until CX != 0
+    loop read_and_store        ; Repeat until CX != 0
 
-    ; Now convert values to hexadecimal
-    mov  si, offset values     ; Set SI to the beginning of the values array
-    mov  di, offset hexBuffer  ; Set DI to the beginning of the hexBuffer
+    jmp  convert_values_to_hex ; Proceed to convert values to hexadecimal
 
 convert_values_to_hex:
     mov  al, [si]              ; Load the value
@@ -100,27 +92,32 @@ d2:
     add  al, ch
     pop  cx
     ret
-  calculate_average:
-  ; Initialize sum and count variables
-                    mov  ax, 0                      ; Clear AX (sum)
-                    mov  cx, 0                      ; Clear CX (count)
-                    mov  si, offset keys       ; Set SI to the beginning of the key buffer
+calculate_average:
+    ; Initialize variables
+    mov  cx, keyCount               ; Initialize CX with the count of keys
+    mov  si, offset keys            ; Set SI to the beginning of the keys array
+    mov  di, offset values          ; Set DI to the beginning of the values array
 
-  sum_loop:         
-                    xor  al, al                     ; Clear AL
-                    mov  al, [si]                   ; Load value from key buffer
-                   ; sub  al, '0'                    ; Convert ASCII to binary
-                    mov  al, byte ptr al            ; Load the byte value from memory address a into the AL register
-                    add  ax, ax                     ; Add the byte value in AL to the AX register
- 
-                    add  cx, 1                      ; Increment count
-                    inc  si                         ; Move to next value in buffer
-                    cmp  si, offset keys + 16  ; Check end of buffer
-                    jb   sum_loop                   ; If not end, continue loop
+    ; Loop through the keys
+calculate_average_loop:
+    mov  ax, [di]                   ; Load value from values array
+    add  [si + 2], ax               ; Add value to corresponding key's sum
+    add  di, 2                      ; Move to next value
+    add  si, 4                      ; Move to next key and average slot
+    loop calculate_average_loop     ; Repeat until all keys are processed
 
-  ; Calculate average
-                    div  cx                         ; Divide sum by count
+    ; Now calculate the average for each key
+    mov  cx, keyCount               ; Reload CX with the count of keys
+    mov  si, offset keys            ; Reset SI to the beginning of the keys array
 
+calculate_average_avg:
+    mov  ax, [si + 2]               ; Load sum of values for the key
+    div  cx                          ; Divide sum by count to get average
+    mov  [si + 2], ax                ; Store the average back to the keys array
+    add  si, 4                       ; Move to next key and average slot
+    loop calculate_average_avg      ; Repeat until all keys are processed
+
+   
   ; Now sort the keys based on their average values
                     mov  si, offset keys      ; Set SI to the beginning of the key buffer
                     mov  cx, 8                      ; Number of keys to process (16 bytes / 2 bytes per key)
