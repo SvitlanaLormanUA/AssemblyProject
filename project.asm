@@ -118,30 +118,46 @@ calculate_average_avg:
     loop calculate_average_avg      ; Repeat until all keys are processed
 
    
-  ; Now sort the keys based on their average values
-                    mov  si, offset keys      ; Set SI to the beginning of the key buffer
-                    mov  cx, 8                      ; Number of keys to process (16 bytes / 2 bytes per key)
-                    dec  cx                         ; Set to count - 1 for loop control
-  outerLoop:        
-                    push cx                         ; Preserve outer loop counter
+  ;bubble sort
+  
+  mov  si, offset keys      ; Set SI to the beginning of the key buffer
+  mov  cx, keyCount         ; Number of keys to process
+  dec  cx                   ; Set to count - 1 for loop control
 
-                    lea  si, keys             ; Set SI to the beginning of the key buffer
-  innerLoop:        
-                    mov  ax, [si]                   ; Load current key
-                    cmp  ax, [si+2]                 ; Compare current key with the next key
-                    jl   nextStep                   ; If less, proceed to the next step
+outerLoop:
+  push cx                   ; Preserve outer loop counter
 
-                    xchg [si+2], ax                 ; Swap keys
-                    mov  [si], ax
-  nextStep:         
-                    add  si, 2                      ; Move to the next key
-                    loop innerLoop                  ; Repeat until inner loop counter is zero
+  lea  si, keys             ; Set SI to the beginning of the key buffer
+  lea  di, keys + 4         ; Set DI to the next key for comparison
+  mov  cx, keyCount - 1     ; Number of key pairs to compare
 
-                    pop  cx                         ; Restore outer loop counter
-                    loop outerLoop                  ; Repeat until outer loop counter is zero
+innerLoop:
+  mov  ax, [si]             ; Load current key's average
+  mov  bx, [di]             ; Load next key's average
+  cmp  ax, bx               ; Compare averages
+  jge  nextPair             ; If current average is greater or equal, proceed to the next pair
+
+  ; Swap keys
+   mov ax, [si]           ; Load current key into AX
+  mov bx, [di]           ; Load next key into BX
+  mov [si], bx           ; Store next key in current key's place
+  mov [di], ax           ; Store current key in next key's place
+
+  mov ax, [si+2]         ; Load corresponding count of current key into AX
+  mov bx, [di+2]         ; Load corresponding count of next key into BX
+  mov [si+2], bx         ; Store next key's count in current key's place
+  mov [di+2], ax         ; Store current key's count in next key's place
+
+nextPair:
+  add  si, 4                ; Move to the next pair
+  add  di, 4                ; Move to the next pair
+  loop innerLoop            ; Repeat until all key pairs are compared
+
+  pop  cx                   ; Restore outer loop counter
+  loop outerLoop            ; Repeat until outer loop counter is zero
 
   ; Store the number of sorted keys
-  ; Now output the sorted keys
+  ;  output the sorted keys
                     mov  si, offset keys      ; Set SI to the beginning of sorted keys (in keyBuffer)
                     mov  cx, 8                      ; Number of keys to output (assuming 8 keys)
 
