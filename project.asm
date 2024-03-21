@@ -4,7 +4,7 @@
 .data
   buffer db 128 dup(?)     ; Buffer for storing input (128 bytes)
   keys   dw 10000 dup(?)   ; Array to store keys (10000 words)
-  values dw 10000 dup(?)  ; Array to store values (10000 words, assuming they are words)
+  values dw 10000 dup(?)   ; Array to store values (10000 words, assuming they are words)
   keyCount dw 0            ; Number of keys read (initialized to 0)
   valueCount dw 0          ; Number of values read (initialized to 0)
   keyBuffer db 16 dup(?)   ; Buffer for storing the currently processed key (16 bytes)
@@ -15,7 +15,7 @@ main proc
     mov  ax, @data             ; Load data segment address
     mov  ds, ax                ; Initialize data segment
 
-    mov  ah, 3Fh               ; DOS function for opening a file
+    mov  ah, 3Fh               ; DOS function for reading from a file
     mov  bx, 0                 ; File handle (0 = standard input)
     lea  dx, buffer            ; Pointer to buffer
     mov  cx, 128               ; Number of bytes to read
@@ -29,15 +29,19 @@ main proc
 
   checking_eof:     
     ; Check end of file
-    mov  ah, 3Eh               ; DOS function for checking EOF
+    mov  ah, 3Fh               ; DOS function for checking EOF
     mov  bx, 0                 ; File handle (0 = standard input)
+    lea  dx, buffer            ; Pointer to buffer
+    mov  cx, 1                 ; Try to read one byte
     int  21h                   ; DOS interrupt
 
-    ; If EOF pointer is not equal to 128 (0x80), file has ended
-    cmp  ax, 80h
-    je   process_lines         ; If not EOF, proceed to process lines
+    ; If no bytes were read, it means the file has ended
+    cmp  ax, 0
+    jne  process_lines         ; If not EOF, proceed to process lines
                   
     ; Otherwise, exit the program
+    mov  ax, 4C00h  
+    int  21h
 
 process_lines:
     mov  si, offset buffer     ; Set SI to the beginning of the buffer
@@ -58,8 +62,7 @@ read_and_store:
     inc  si                    ; Move to the next character
     loop read_and_store        ; Repeat until CX != 0
 
-    jmp  convert_values_to_hex ; Proceed to convert values to hexadecimal
-
+    jmp  convert_values_to_hex ; 
 convert_values_to_hex:
     mov  al, [si]              ; Load the value
     call ascii_hex             ; Convert the value to hexadecimal
