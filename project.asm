@@ -20,11 +20,7 @@ valInd      dw 0
 main proc
     mov ax, @data
     mov ds, ax
-
-    mov dx, offset filename     ; Address filename with ds:dx 
-    mov ah, 03Dh                ; DOS Open-File function number 
-    mov al, 0                   ; 0 = Read-only access 
-    int 21h                     ; Call DOS to open file 
+    jmp read_next
 
     jc error                    ; Call routine to handle errors
 
@@ -33,7 +29,7 @@ main proc
 ; Read file and put characters into buffer
 read_next:
     mov ah, 3Fh                 ; DOS Read File function number
-    mov bx, [handle]            ; File handle
+    mov bx, 0           ; File handle
     mov cx, 1                   ; 1 byte to read
     mov dx, offset oneChar      ; Read to ds:dx 
     int 21h                     ; AX = number of bytes read
@@ -53,11 +49,7 @@ read_next:
     mov al, 0
     mov [si], al
 
-    ; Fill keys array
-    mov ah, 09h                 ; DOS Display String function number
-    mov dx, offset mes
-    int 21h
-
+ 
     ; Convert values to hexadecimal
     jmp convert_values_to_hex
 

@@ -1,11 +1,6 @@
 {
   "masmtasm.ASM.mode": "workspace",
   "masmtasm.ASM.actions": {
-
-
-    
-
-
     "TASM": {
       "baseBundle": "<built-in>/TASM.jsdos",
       "before": [
@@ -14,13 +9,13 @@
       "run": [
         "TASM ${file}",
         "TLINK ${filename}",
-        ">${filename} < test.in"
+        ">V3TEST ${filename}"
       ],
       "debug": [
         "TASM /zi ${file}",
         "TLINK /v/3 ${filename}.obj",
         "copy C:\\TASM\\TDC2.TD TDCONFIG.TD",
-        "TD -cTDCONFIG.TD ${filename}.exe"
+        "TD -cTDCONFIG.TD ${filename}.exe < V3TEST.in"
       ]
     },
     "MASM-v6.11": {
@@ -61,5 +56,6 @@
         "msdos player"
       ]
     }
-  }
+  },
+  "masmtasm.ASM.emulator": "jsdos"
 }
