@@ -2,236 +2,131 @@
 .stack 100h
 
 .data
-filename    db "test.in", 0
-mes         db "Sorted $"
-mesBad      db "File error $"
-handle      dw 0
-
-buffInd     db 0                 ; Index to keep track of the current position in buffer
-oneChar     db 0
-
-keys        db 5000*16 dup(0)
-keyInd      dw 0
-isWord      db 1
-values      db 5000*16 dup(0)
-valInd      dw 0
+oneChar db ?
+numbersCount dw 0
+numbersArray dw 100 dup(?) ; Assuming a maximum of 100 numbers
+median dw ?
+average dw ?
 
 .code
-main proc
+main:
     mov ax, @data
     mov ds, ax
 
-    mov dx, offset filename     ; Address filename with ds:dx 
-    mov ah, 03Dh                ; DOS Open-File function number 
-    mov al, 0                   ; 0 = Read-only access 
-    int 21h                     ; Call DOS to open file 
+    call read_next
+    call parseNumbers
+    call sort
+    call calculateAverage
+    call calculateMedian
 
-    jc error                    ; Call routine to handle errors
-
-    mov [handle], ax            ; Save file handle for later
-
-; Read file and put characters into buffer
-read_next:
-    mov ah, 3Fh                 ; DOS Read File function number
-    mov bx, [handle]            ; File handle
-    mov cx, 1                   ; 1 byte to read
-    mov dx, offset oneChar      ; Read to ds:dx 
-    int 21h                     ; AX = number of bytes read
-
-    push ax                     ; Preserve ax
-    call procChar               ; Process the read character
-    pop ax                      ; Restore ax
-
-    or ax, ax                   ; Check if ax is zero (end of file)
-    jnz read_next               ; If not zero, continue reading
-
-    ; Clean values last number
-    mov si, offset values
-    mov bx, valInd
-    dec bx
-    add si, bx
-    mov al, 0
-    mov [si], al
-
-    ; Fill keys array
-    mov ah, 09h                 ; DOS Display String function number
-    mov dx, offset mes
+    mov ah, 4Ch
     int 21h
 
-    ; Convert values to hexadecimal
-    jmp convert_values_to_hex
+read_next:
+    mov ah, 3Fh
+    mov bx, 0h 
+    mov cx, 1  
+    mov dx, offset oneChar  
+    int 21h 
 
-error:
-    mov ah, 09h                 ; DOS Display String function number
-    mov dx, offset mesBad
-    int 21h                     ; Display error message
+    ; do something with [oneChar]
+    cmp oneChar, ' '    
+    je saveNumber        
+    cmp oneChar, 0Dh     
+    je saveNumber        
+    cmp oneChar, 0Ah     
+    je saveNumber       
 
-exit_program:
-    mov ah, 4Ch               ; DOS Terminate Program function number
-    int 21h                     ; Terminate program
-
-procChar proc
-    cmp oneChar, 0Dh            ; Check if carriage return
-    jnz notCR                   ; If not CR, jump to notCR
-    mov isWord, 1               ; Change isWord to 1
-    jmp endProc
-
-notCR:
-    cmp oneChar, 0Ah            ; Check if line feed
-    jnz notLF                   ; If not LF, jump to notLF
-    mov isWord, 1               ; Change isWord to 1
-    jmp endProc
-
-notLF:
-    cmp oneChar, 20h            ; Check if space
-    jnz notSpace                ; If not space, jump to notSpace
-    mov isWord, 0               ; Change isWord to 0
-    jmp endProc
-
-notSpace:
-    cmp isWord, 0               ; Check if isWord is 0
-    jnz itsWord                 ; If not 0, jump to itsWord
-    ; Save char to values
-    mov si, offset values
-    mov bx, valInd
-    add si, bx
-    mov al, oneChar
-    mov [si], al
-    inc valInd
-    jmp endProc
-
-itsWord:
-    ; Save char to keys
-    mov si, offset keys
-    mov bx, keyInd 
-    add si, bx
-    mov al, oneChar
-    mov [si], al
-    inc keyInd 
-
-endProc:
-    ret
-procChar endp   
-
-convert_values_to_hex:
-    ; Convert values to hexadecimal
-    mov  cx, valInd             ; Initialize CX with the count of values
-    mov  si, offset values      ; Set SI to the beginning of the values array
-    mov  di, offset values      ; Set DI to the beginning of the values array
-
-convert_values_to_hex_loop:
-    mov  al, [si]               ; Load the value
-    call ascii_hex              ; Convert the value to hexadecimal
-    mov  [di], al               ; Store the hexadecimal character in the values buffer
-    inc  di                     ; Move to the next position in the values array
-    inc  si                     ; Move to the next position in the values array
-    loop convert_values_to_hex_loop ; Repeat until CX != 0
-
-    ; Calculate average
-    jmp calculate_average
-
-ascii_hex:        
-    push cx
-    mov  ah, 01h
-    int  21h
-    sub  al, 30h
-    cmp  al, 09h
-    jle  down
-down:             
-    mov  cl, 04h
-    rol  al, cl
-    mov  ch, al
-    mov  ah, 01h
-    int  21h
-    sub  al, 30h
-    cmp  al, 09h
-    jle  d2
-    sub  al, 07h
-d2:               
-    add  al, ch
-    pop  cx
+    or ax, ax            
+    jnz read_next       
     ret
 
-calculate_average:
-    ; Initialize variables
-    mov  cx, keyInd             ; Initialize CX with the count of keys
-    mov  si, offset keys        ; Set SI to the beginning of the keys array
+saveNumber:
+    push ax
+     push bx ; Save bx if you're using it elsewhere
+    mov bx, numbersCount ; bx will be our index to calculate the effective address
+mov si, numbersArray
+mov bx, numbersCount
+shl bx, 1 ; Multiply bx by 2 to account for 2-byte numbers
+add si, bx ; Calculate the offset
+mov [si], ax ; Store the value in the array
+inc numbersCount ; Increment count;
+;Multiply bx by 2 because each number is 2 bytes
+    inc numbersCount
+    pop bx ; Restore bx if it was used elsewhere
 
-calculate_average_loop:
-    mov  ax, [si]               ; Load value from keys array
-    add  [si + 2], ax           ; Add value to corresponding key's sum
-    add  si, 4                  ; Move to next key and average slot
-    loop calculate_average_loop ; Repeat until all keys are processed
+    inc numbersCount    
+    ret
 
-    ; Now calculate the average for each key
-    mov  cx, keyInd             ; Reload CX with the count of keys
-    mov  si, offset keys        ; Reset SI to the beginning of the keys array
+print_numbers:
+    mov cx, numbersCount              
 
-calculate_average_avg:
-    mov  ax, [si + 2]           ; Load sum of values for the key
-    div  cx                      ; Divide sum by count to get average
-    mov  [si + 2], ax            ; Store the average back to the keys array
-    add  si, 4                   ; Move to next key and average slot
-    loop calculate_average_avg   ; Repeat until all keys are processed
+print_loop:
+    pop ax                
+    mov dl, al             
+    mov ah, 02h           
+    int 21h               
+    loop print_loop        
 
-; Bubble sort
- 
-    mov  si, offset keys        ; Set SI to the beginning of the keys array
-    mov  cx, keyInd             ; Number of keys to process
-    dec  cx                     ; Set to count - 1 for loop control
+    ret
 
-outerLoop:
-    push cx                     ; Preserve outer loop counter
+parseNumbers:
+    ; No need for implementation since numbers are already saved during input.
+    ret
 
-    lea  si, keys               ; Set SI to the beginning of the keys array
-    lea  di, keys + 4           ; Set DI to the next key for comparison
-    mov  cx, keyInd - 1         ; Number of key pairs to compare
+sort:
+    ; Bubble sort implementation
+    mov bx, numbersCount
+    dec bx
 
-innerLoop:
-    mov  ax, [si + 2]           ; Load current key's average
-    mov  bx, [di + 2]           ; Load next key's average
-    cmp  ax, bx                 ; Compare averages
-    jge  nextPair               ; If current average is greater or equal, proceed to the next pair
+outer_loop:
+    mov si, 0
+inner_loop:
+    mov ax, [numbersArray + si]
+    cmp ax, [numbersArray + si + 2]
+    jg swap
+    inc si
+    loop inner_loop
 
-    ; Swap keys
-    mov  ax, [si]               ; Load current key into AX
-    mov  bx, [di]               ; Load next key into BX
-    mov  [si], bx               ; Store next key in current key's place
-    mov  [di], ax               ; Store current key in next key's place
+    dec bx
+    jnz outer_loop
 
-    mov  ax, [si + 2]           ; Load corresponding count of current key into AX
-    mov  bx, [di + 2]           ; Load corresponding count of next key into BX
-    mov  [si + 2], bx           ; Store next key's count in current key's place
-    mov  [di + 2], ax           ; Store current key's count in next key's place
+    ret
 
-nextPair:
-    add  si, 4                  ; Move to the next pair
-    add  di, 4                  ; Move to the next pair
-    loop innerLoop              ; Repeat until all key pairs are compared
+swap:
+    mov dx, [numbersArray + si]
+  mov dx, [numbersArray + si + 2] ; Move the value at (numbersArray + si + 2) into dx
+mov [numbersArray + si], dx ; Store the value in dx at (numbersArray + si)
 
-    pop  cx                     ; Restore outer loop counter
-    loop outerLoop              ; Repeat until outer loop counter is zero
+    mov [numbersArray + si + 2], dx
+    ret
 
-    ; Output the sorted keys
-    mov  si, offset keys        ; Set SI to the beginning of sorted keys
-    mov  cx, keyInd             ; Number of keys to output
+calculateAverage:
+    mov ax, 0
+    mov cx, numbersCount
+    mov si, 0
+average_loop:
+    add ax, [numbersArray + si]
+    add si, 2
+    loop average_loop
+    mov average, ax
+    mov dx, 0
+    div cx
+    mov average, ax
+    ret
 
-output_loop:      
-    mov  ax, [si]               ; Load key for output
-    add  dl, '0'                ; Convert back to ASCII
-    mov  ah, 02h                ; DOS function for displaying character
-    int  21h                    ; Display character
+calculateMedian:
+    mov ax, numbersCount
+    shr ax, 1 ; Divide by 2
+    mov bx, ax
+    shl ax, 1 ; Multiply by 2 (effectively dividing by 2 and rounding down to even if necessary)
 
-    ; Debugging output to verify the content of the sorted keys buffer (optional)
-    mov  dl, ','                ; Delimiter for debugging output
-    int  21h                    ; Display delimiter
+   mov bx, ax ; Move the value of ax into bx
+shl bx, 1 ; Multiply bx by 2 to account for 2-byte numbers
+mov dx, [numbersArray + bx] ; Load the value from the calculated offset into dx
 
-    add  si, 4                  ; Move to next key
-    loop output_loop            ; Repeat until all keys are printed
+    mov median, dx
 
-    jmp  exit_program           ; Terminate program
-
-
-
-main endp
+    ret
+  
 end main
