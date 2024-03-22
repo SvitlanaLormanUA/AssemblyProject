@@ -3,7 +3,7 @@
 
 .data
 
-mes         db "Sorted $"
+
 mesBad      db "File error $"
 handle      dw 0
 
