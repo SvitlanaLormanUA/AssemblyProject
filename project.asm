@@ -2,27 +2,28 @@
 .stack 100h
 
 .data
-oneChar db ?
-numbersCount dw 0
-numbersArray dw 100 dup(?) ; Assuming a maximum of 100 numbers
-median dw ?
-average dw ?
+
+mesBad      db "File error $"
+handle      dw 0
+
+buffInd     db 0                 ; Index to keep track of the current position in buffer
+oneChar     db 0
+
+keys        db 5000*16 dup(0)
+keyInd      dw 0
+isWord      db 1
+values      db 5000*16 dup(0)
+valInd      dw 0
 
 .code
-main:
+main proc
     mov ax, @data
     mov ds, ax
-<<<<<<< HEAD
     jmp read_next
 
-    jc error                    ; Call routine to handle errors
-
-    mov [handle], ax            ; Save file handle for later
-
-; Read file and put characters into buffer
 read_next:
     mov ah, 3Fh                 ; DOS Read File function number
-    mov bx, 0           ; File handle
+    mov bx, 0                   ; File handle
     mov cx, 1                   ; 1 byte to read
     mov dx, offset oneChar      ; Read to ds:dx 
     int 21h                     ; AX = number of bytes read
@@ -42,126 +43,201 @@ read_next:
     mov al, 0
     mov [si], al
 
- 
     ; Convert values to hexadecimal
     jmp convert_values_to_hex
-=======
 
-    call read_next
-    call parseNumbers
-    call sort
-    call calculateAverage
-    call calculateMedian
+error:
+    mov ah, 09h                 ; DOS Display String function number
+    mov dx, offset mesBad
+    int 21h                     ; Display error message
 
-    mov ah, 4Ch
-    int 21h
 
-read_next:
-    mov ah, 3Fh
-    mov bx, 0h 
-    mov cx, 1  
-    mov dx, offset oneChar  
-    int 21h 
->>>>>>> a6397c15f7cf871268d38e48ece85503e565c963
+procChar proc
+    cmp oneChar, 0Dh            ; Check if carriage return
+    jnz notCR                   ; If not CR, jump to notCR
+    mov isWord, 1               ; Change isWord to 1
+    jmp endProc
 
-    ; do something with [oneChar]
-    cmp oneChar, ' '    
-    je saveNumber        
-    cmp oneChar, 0Dh     
-    je saveNumber        
-    cmp oneChar, 0Ah     
-    je saveNumber       
+notCR:
+    cmp oneChar, 0Ah            ; Check if line feed
+    jnz notLF                   ; If not LF, jump to notLF
+    mov isWord, 1               ; Change isWord to 1
+    jmp endProc
 
-    or ax, ax            
-    jnz read_next       
+notLF:
+    cmp oneChar, 20h            ; Check if space
+    jnz notSpace                ; If not space, jump to notSpace
+    mov isWord, 0               ; Change isWord to 0
+    jmp endProc
+
+notSpace:
+    cmp isWord, 0               ; Check if isWord is 0
+    jnz itsWord                 ; If not 0, jump to itsWord
+    ; Save char to values
+    mov si, offset values
+    mov bx, valInd
+    add si, bx
+    mov al, oneChar
+    mov [si], al
+    inc valInd
+    jmp endProc
+
+itsWord:
+    ; Save char to keys
+    mov si, offset keys
+    mov bx, keyInd 
+    add si, bx
+    mov al, oneChar
+    mov [si], al
+    inc keyInd 
+
+endProc:
     ret
+procChar endp   
 
-saveNumber:
-    push ax
-     push bx ; Save bx if you're using it elsewhere
-    mov bx, numbersCount ; bx will be our index to calculate the effective address
-mov si, numbersArray
-mov bx, numbersCount
-shl bx, 1 ; Multiply bx by 2 to account for 2-byte numbers
-add si, bx ; Calculate the offset
-mov [si], ax ; Store the value in the array
-inc numbersCount ; Increment count;
-;Multiply bx by 2 because each number is 2 bytes
-    inc numbersCount
-    pop bx ; Restore bx if it was used elsewhere
+convert_values_to_hex:
+    ; Convert values to hexadecimal
+    mov  cx, valInd             ; Initialize CX with the count of values
+    mov  si, offset values      ; Set SI to the beginning of the values array
+    mov  di, offset values      ; Set DI to the beginning of the values array
 
-    inc numbersCount    
-    ret
+convert_values_to_hex_loop:
+    mov  al, [si]   
+    cmp al, 0
+    je skip_conversion  
+    mov cl, al
+    mov ax, 0                   ; Clear AX (get rid of HO bits)
+    mov cl, al             ; Load the value
+    call ascii_hex              ; Convert the value to hexadecimal
+    mov  [di], al               ; Store the hexadecimal character in the values buffer
+  skip_conversion:
+    inc si  ; Move to the next element in the buffer even if skipped
+    inc di  ; Move the destination pointer for the next conversion
+    loop convert_values_to_hex_loop                  ; Move to the next position in the values array
 
-print_numbers:
-    mov cx, numbersCount              
+    ; Calculate average
+    jmp calculate_average
 
-print_loop:
-    pop ax                
-    mov dl, al             
-    mov ah, 02h           
-    int 21h               
-    loop print_loop        
+ascii_hex:
+    MOV BX, 16                  ; Set up the divisor (base 16)
+    MOV CX, 0                   ; Initialize the counter
+    MOV DX, 0                   ; Clear DX
 
-    ret
+Div2:                                               ; Dividend (what's being divided) in DX/AX pair, Quotient in AX, Remainder in DX.
+    DIV BX                      ; Divide (will be word sized).
+    PUSH DX                     ; Save DX (the remainder) to stack.
 
-parseNumbers:
-    ; No need for implementation since numbers are already saved during input.
-    ret
+    ADD CX, 1                   ; Add one to counter
+    MOV DX, 0                   ; Clear Remainder (DX)
+    CMP AX, 0                   ; Compare Quotient (AX) to zero
+    JNE Div2                    ; If AX not 0, go to "Div2:"
+getHex2:
+    MOV DX, 0                   ; Clear DX.
+    POP DX                      ; Put top of stack into DX.
+    ADD DL, 30h                 ; Conv to character.
 
-sort:
-    ; Bubble sort implementation
-    mov bx, numbersCount
-    dec bx
+    CMP DL, 39h
+    JG MoreHex2
 
-outer_loop:
-    mov si, 0
-inner_loop:
-    mov ax, [numbersArray + si]
-    cmp ax, [numbersArray + si + 2]
-    jg swap
-    inc si
-    loop inner_loop
+HexRet2:        
+    LOOP getHex2                ; If more to do, getHex2 again
+                                ; LOOP subtracts 1 from CX. If non-zero, loop.
+    JMP Skip2
+MoreHex2:
+    ADD DL, 7h
+    JMP HexRet2                 ; Return to where it left off before adding 7h.
+Skip2:
+    RET
 
-    dec bx
-    jnz outer_loop
+calculate_average:
+    ; Initialize variables
+    mov  cx, keyInd             ; Initialize CX with the count of keys
+    mov  si, offset keys        ; Set SI to the beginning of the keys array
 
-    ret
+calculate_average_loop:
+    mov  ax, [si]               ; Load value from keys array
+    add  [si + 2], ax           ; Add value to corresponding key's sum
+    add  si, 4                  ; Move to next key and average slot
+    loop calculate_average_loop ; Repeat until all keys are processed
 
-swap:
-    mov dx, [numbersArray + si]
-  mov dx, [numbersArray + si + 2] ; Move the value at (numbersArray + si + 2) into dx
-mov [numbersArray + si], dx ; Store the value in dx at (numbersArray + si)
+    ; Now calculate the average for each key
+    mov  cx, keyInd             ; Reload CX with the count of keys
+    mov  si, offset keys        ; Reset SI to the beginning of the keys array
 
-    mov [numbersArray + si + 2], dx
-    ret
+calculate_average_avg:
+    mov  ax, [si + 2]           ; Load sum of values for the key
+    div  cx                      ; Divide sum by count to get average
+    mov  [si + 2], ax            ; Store the average back to the keys array
+    add  si, 4                   ; Move to next key and average slot
+    loop calculate_average_avg   ; Repeat until all keys are processed
 
-calculateAverage:
-    mov ax, 0
-    mov cx, numbersCount
-    mov si, 0
-average_loop:
-    add ax, [numbersArray + si]
-    add si, 2
-    loop average_loop
-    mov average, ax
-    mov dx, 0
-    div cx
-    mov average, ax
-    ret
+    ; Bubble sort
+    mov  si, offset keys        ; Set SI to the beginning of the keys array
+    mov  cx, keyInd             ; Number of keys to process
+    dec  cx                     ; Set to count - 1 for loop control
 
-calculateMedian:
-    mov ax, numbersCount
-    shr ax, 1 ; Divide by 2
-    mov bx, ax
-    shl ax, 1 ; Multiply by 2 (effectively dividing by 2 and rounding down to even if necessary)
 
-   mov bx, ax ; Move the value of ax into bx
-shl bx, 1 ; Multiply bx by 2 to account for 2-byte numbers
-mov dx, [numbersArray + bx] ; Load the value from the calculated offset into dx
+; Bubble sort
+ 
+    mov  si, offset keys        ; Set SI to the beginning of the keys array
+    mov  cx, keyInd             ; Number of keys to process
+    dec  cx                     ; Set to count - 1 for loop control
 
-    mov median, dx
+outerLoop:
+    push cx                     ; Preserve outer loop counter
 
-    ret
-  
+    lea  si, keys               ; Set SI to the beginning of the keys array
+    lea  di, keys + 4           ; Set DI to the next key for comparison
+    mov  cx, keyInd - 1         ; Number of key pairs to compare
+
+innerLoop:
+    mov  ax, [si + 2]           ; Load current key's average
+    mov  bx, [di + 2]           ; Load next key's average
+    cmp  ax, bx                 ; Compare averages
+    jge  nextPair               ; If current average is greater or equal, proceed to the next pair
+
+    ; Swap keys
+    mov  ax, [si]               ; Load current key into AX
+    mov  bx, [di]               ; Load next key into BX
+    mov  [si], bx               ; Store next key in current key's place
+    mov  [di], ax               ; Store current key in next key's place
+
+    mov  ax, [si + 2]           ; Load corresponding count of current key into AX
+    mov  bx, [di + 2]           ; Load corresponding count of next key into BX
+    mov  [si + 2], bx           ; Store next key's count in current key's place
+    mov  [di + 2], ax           ; Store current key's count in next key's place
+
+nextPair:
+    add  si, 4                  ; Move to the next pair
+    add  di, 4                  ; Move to the next pair
+    loop innerLoop              ; Repeat until all key pairs are compared
+
+    pop  cx                     ; Restore outer loop counter
+    loop outerLoop              ; Repeat until outer loop counter is zero
+
+    ; Output the sorted keys
+    mov  si, offset keys        ; Set SI to the beginning of sorted keys
+    mov  cx, keyInd             ; Number of keys to output
+
+output_loop:      
+    mov  ax, [si]               ; Load key for output
+    add  dl, '0'                ; Convert back to ASCII
+    mov  ah, 02h                ; DOS function for displaying character
+    int  21h                    ; Display character
+
+    ; Debugging output to verify the content of the sorted keys buffer (optional)
+    mov  dl, ','                ; Delimiter for debugging output
+    int  21h                    ; Display delimiter
+
+    add  si, 4                  ; Move to next key
+    loop output_loop            ; Repeat until all keys are printed
+
+    jmp  exit_program           ; Terminate program
+
+
+exit_program:
+    mov ah, 4Ch               ; DOS Terminate Program function number
+    int 21h                     ; Terminate program
+
+main endp
 end main
