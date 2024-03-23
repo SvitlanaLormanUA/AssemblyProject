@@ -15,28 +15,27 @@ isWord      db 1
 values      db 5000*16 dup(0)
 valInd      dw 0
 
-mesBad      db "File error $"
-handle      dw 0
-
-buffInd     db 0                 ; Index to keep track of the current position in buffer
-oneChar     db 0
-
-keys        db 5000*16 dup(0)
-keyInd      dw 0
-isWord      db 1
-values      db 5000*16 dup(0)
-valInd      dw 0
-
 .code
-main proc
 main proc
     mov ax, @data
     mov ds, ax
     jmp read_next
+<<<<<<< HEAD
+=======
 
+    jc error                    ; Call routine to handle errors
+
+    mov [handle], ax            ; Save file handle for later
+>>>>>>> a997670cdc60c95015b1685bcbf2d6b4454e6b18
+
+; Read file and put characters into buffer
 read_next:
     mov ah, 3Fh                 ; DOS Read File function number
+<<<<<<< HEAD
     mov bx, 0                   ; File handle
+=======
+    mov bx, 0           ; File handle
+>>>>>>> a997670cdc60c95015b1685bcbf2d6b4454e6b18
     mov cx, 1                   ; 1 byte to read
     mov dx, offset oneChar      ; Read to ds:dx 
     int 21h                     ; AX = number of bytes read
@@ -56,6 +55,10 @@ read_next:
     mov al, 0
     mov [si], al
 
+<<<<<<< HEAD
+=======
+ 
+>>>>>>> a997670cdc60c95015b1685bcbf2d6b4454e6b18
     ; Convert values to hexadecimal
     jmp convert_values_to_hex
 
@@ -116,22 +119,36 @@ convert_values_to_hex:
 
 convert_values_to_hex_loop:
     mov  al, [si]   
+<<<<<<< HEAD
     cmp al, 0
     je skip_conversion  
     mov cl, al
     mov ax, 0                   ; Clear AX (get rid of HO bits)
+=======
+  cmp al, 0
+  je skip_conversion  
+    mov cl, al
+     mov ax, 0                   ; Clear AX (get rid of HO bits)
+>>>>>>> a997670cdc60c95015b1685bcbf2d6b4454e6b18
     mov cl, al             ; Load the value
     call ascii_hex              ; Convert the value to hexadecimal
     mov  [di], al               ; Store the hexadecimal character in the values buffer
   skip_conversion:
+<<<<<<< HEAD
     inc si  ; Move to the next element in the buffer even if skipped
     inc di  ; Move the destination pointer for the next conversion
     loop convert_values_to_hex_loop                  ; Move to the next position in the values array
+=======
+  inc si  ; Move to the next element in the buffer even if skipped
+  inc di  ; Move the destination pointer for the next conversion
+loop convert_values_to_hex_loop                  ; Move to the next position in the values array
+>>>>>>> a997670cdc60c95015b1685bcbf2d6b4454e6b18
 
     ; Calculate average
     jmp calculate_average
 
 ascii_hex:
+<<<<<<< HEAD
     MOV BX, 16                  ; Set up the divisor (base 16)
     MOV CX, 0                   ; Initialize the counter
     MOV DX, 0                   ; Clear DX
@@ -161,6 +178,37 @@ MoreHex2:
     JMP HexRet2                 ; Return to where it left off before adding 7h.
 Skip2:
     RET
+=======
+ MOV BX, 16                  ; Set up the divisor (base 16)
+        MOV CX, 0                   ; Initialize the counter
+        MOV DX, 0                   ; Clear DX
+
+        Div2:                                               ; Dividend (what's being divided) in DX/AX pair, Quotient in AX, Remainder in DX.
+            DIV BX                  ; Divide (will be word sized).
+            PUSH DX                 ; Save DX (the remainder) to stack.
+
+            ADD CX, 1               ; Add one to counter
+            MOV DX, 0               ; Clear Remainder (DX)
+            CMP AX, 0               ; Compare Quotient (AX) to zero
+            JNE Div2              ; If AX not 0, go to "Div2:"
+        getHex2:
+            MOV DX, 0               ; Clear DX.
+            POP DX                  ; Put top of stack into DX.
+            ADD DL, 30h             ; Conv to character.
+
+            CMP DL, 39h
+            JG MoreHex2
+
+        HexRet2:        
+            LOOP getHex2            ; If more to do, getHex2 again
+                                    ; LOOP subtracts 1 from CX. If non-zero, loop.
+            JMP Skip2
+        MoreHex2:
+            ADD DL, 7h
+            JMP HexRet2             ; Return to where it left off before adding 7h.
+        Skip2:
+            RET
+>>>>>>> a997670cdc60c95015b1685bcbf2d6b4454e6b18
 
 calculate_average:
     ; Initialize variables
@@ -184,12 +232,15 @@ calculate_average_avg:
     add  si, 4                   ; Move to next key and average slot
     loop calculate_average_avg   ; Repeat until all keys are processed
 
+<<<<<<< HEAD
     ; Bubble sort
     mov  si, offset keys        ; Set SI to the beginning of the keys array
     mov  cx, keyInd             ; Number of keys to process
     dec  cx                     ; Set to count - 1 for loop control
 
 
+=======
+>>>>>>> a997670cdc60c95015b1685bcbf2d6b4454e6b18
 ; Bubble sort
  
     mov  si, offset keys        ; Set SI to the beginning of the keys array
