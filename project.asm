@@ -3,7 +3,6 @@
 
 .data
 
-
 mesBad      db "File error $"
 handle      dw 0
 
@@ -58,9 +57,6 @@ error:
     mov dx, offset mesBad
     int 21h                     ; Display error message
 
-exit_program:
-    mov ah, 4Ch               ; DOS Terminate Program function number
-    int 21h                     ; Terminate program
 
 procChar proc
     cmp oneChar, 0Dh            ; Check if carriage return
@@ -112,37 +108,52 @@ convert_values_to_hex:
     mov  di, offset values      ; Set DI to the beginning of the values array
 
 convert_values_to_hex_loop:
-    mov  al, [si]               ; Load the value
+    mov  al, [si]   
+  cmp al, 0
+  je skip_conversion  
+    mov cl, al
+     mov ax, 0                   ; Clear AX (get rid of HO bits)
+    mov cl, al             ; Load the value
     call ascii_hex              ; Convert the value to hexadecimal
     mov  [di], al               ; Store the hexadecimal character in the values buffer
-    inc  di                     ; Move to the next position in the values array
-    inc  si                     ; Move to the next position in the values array
-    loop convert_values_to_hex_loop ; Repeat until CX != 0
+  skip_conversion:
+  inc si  ; Move to the next element in the buffer even if skipped
+  inc di  ; Move the destination pointer for the next conversion
+loop convert_values_to_hex_loop                  ; Move to the next position in the values array
 
     ; Calculate average
     jmp calculate_average
 
-ascii_hex:        
-    push cx
-    mov  ah, 01h
-    int  21h
-    sub  al, 30h
-    cmp  al, 09h
-    jle  down
-down:             
-    mov  cl, 04h
-    rol  al, cl
-    mov  ch, al
-    mov  ah, 01h
-    int  21h
-    sub  al, 30h
-    cmp  al, 09h
-    jle  d2
-    sub  al, 07h
-d2:               
-    add  al, ch
-    pop  cx
-    ret
+ascii_hex:
+ MOV BX, 16                  ; Set up the divisor (base 16)
+        MOV CX, 0                   ; Initialize the counter
+        MOV DX, 0                   ; Clear DX
+
+        Div2:                                               ; Dividend (what's being divided) in DX/AX pair, Quotient in AX, Remainder in DX.
+            DIV BX                  ; Divide (will be word sized).
+            PUSH DX                 ; Save DX (the remainder) to stack.
+
+            ADD CX, 1               ; Add one to counter
+            MOV DX, 0               ; Clear Remainder (DX)
+            CMP AX, 0               ; Compare Quotient (AX) to zero
+            JNE Div2              ; If AX not 0, go to "Div2:"
+        getHex2:
+            MOV DX, 0               ; Clear DX.
+            POP DX                  ; Put top of stack into DX.
+            ADD DL, 30h             ; Conv to character.
+
+            CMP DL, 39h
+            JG MoreHex2
+
+        HexRet2:        
+            LOOP getHex2            ; If more to do, getHex2 again
+                                    ; LOOP subtracts 1 from CX. If non-zero, loop.
+            JMP Skip2
+        MoreHex2:
+            ADD DL, 7h
+            JMP HexRet2             ; Return to where it left off before adding 7h.
+        Skip2:
+            RET
 
 calculate_average:
     ; Initialize variables
@@ -224,6 +235,9 @@ output_loop:
     jmp  exit_program           ; Terminate program
 
 
+exit_program:
+    mov ah, 4Ch               ; DOS Terminate Program function number
+    int 21h                     ; Terminate program
 
 main endp
 end main
