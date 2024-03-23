@@ -15,7 +15,20 @@ isWord      db 1
 values      db 5000*16 dup(0)
 valInd      dw 0
 
+mesBad      db "File error $"
+handle      dw 0
+
+buffInd     db 0                 ; Index to keep track of the current position in buffer
+oneChar     db 0
+
+keys        db 5000*16 dup(0)
+keyInd      dw 0
+isWord      db 1
+values      db 5000*16 dup(0)
+valInd      dw 0
+
 .code
+main proc
 main proc
     mov ax, @data
     mov ds, ax
