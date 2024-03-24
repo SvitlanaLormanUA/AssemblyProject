@@ -4,18 +4,18 @@
     "TASM": {
       "baseBundle": "<built-in>/TASM.jsdos",
       "before": ["set PATH=C:\\TASM"],
-      "run": ["TASM ${file}", "TLINK ${filename}", "> V3TEST ${filename}"],
+      "run": ["TASM ${file}", "TLINK ${filename}", ">V3TEST ${filename} "],
       "debug": [
         "TASM /zi ${file}",
         "TLINK /v/3 ${filename}.obj",
         "copy C:\\TASM\\TDC2.TD TDCONFIG.TD",
-        "TD -cTDCONFIG.TD ${filename}.exe < V3TEST1.in"
+        "TD -cTDCONFIG.TD ${filename}.exe < V3TEST.in"
       ]
     },
     "MASM-v6.11": {
       "baseBundle": "<built-in>/MASM-v6.11.jsdos",
       "before": ["set PATH=C:\\MASM"],
-      "run": ["masm ${file};", "link ${filename};", ">${filename} < test.in"],
+      "run": ["masm ${file};", "link ${filename};", ">${filename}"],
       "debug": [
         "masm ${file};",
         "link ${filename}.OBJ;",
@@ -34,5 +34,5 @@
       "support": ["jsdos", "dosbox", "dosbox-x", "msdos player"]
     }
   },
-  "masmtasm.ASM.emulator": "dosbox-x"
+  "masmtasm.ASM.emulator": "jsdos"
 }
