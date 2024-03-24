@@ -22,7 +22,7 @@ main proc
     mov ax, @data
     mov ds, ax
 
-    mov dx, offset input_filename
+   
     mov ah, 03Dh
     mov al, 0
     int 21h
@@ -50,11 +50,10 @@ read_next:
     push dx
     call procChar
 
-;processing the characters
-push dx
-push cx
-push bx
-push ax
+pop dx
+pop cx
+pop bx
+pop ax
     or ax, ax
     jnz read_next
 
@@ -69,7 +68,6 @@ push ax
     call writeArrays
 
     mov ah, 09h
-    mov dx, offset success_message
     int 21h
 
 ending:
@@ -494,6 +492,169 @@ nextStep:
     loop outerLoop
 
     push dx
+    call mergeSort  ; Call merge sort instead of sortArr
     ret
 sortArr endp
+
+mergeSort proc
+    ; Check if the array has more than one element
+    mov ax, new_key_index
+    cmp ax, 1
+    jle endMergeSort  ; If 1 or 0 elements, no sorting needed
+
+    ; Calculate mid index
+    mov bx, 2
+    div bx  ; AX = new_key_index / 2 (mid index)
+    
+    ; Set up parameters for mergeSortRecursive
+    push ax  ; Push mid index
+    mov ax, 0  ; Lower bound
+    mov dx, new_key_index  ; Upper bound
+    dec dx  ; Upper bound - 1 (array indexing starts from 0)
+    
+    ; Call mergeSortRecursive for left and right halves
+    call mergeSortRecursive
+    
+    pop ax  ; Pop mid index
+    
+    ; Merge the two sorted halves
+    mov si, offset value_array  ; Start of array
+    mov di, offset quantity_array  ; Start of quantity array
+    mov cx, new_key_index  ; Number of elements
+    call mergeArrays
+    
+    endMergeSort:
+        ret
+
+mergeSortRecursive proc
+    push bp
+    mov bp, sp
+    push ax
+    push dx
+    
+    ; Parameters:
+    ; bp + 6: Lower bound
+    ; bp + 4: Upper bound
+    
+    mov ax, bp
+    add ax, 6  ; Lower bound
+    mov bx, bp
+    add bx, 4  ; Upper bound
+    
+    cmp ax, bx
+    jge endMergeSortRecursive  ; If lower bound >= upper bound, return
+    
+    ; Calculate mid index
+    sub bx, ax  ; Upper bound - lower bound
+    mov cx, 2
+    div cx  ; BX = (upper bound - lower bound) / 2
+    
+    ; Calculate mid index: (upper bound + lower bound) / 2
+    mov dx, ax  ; DX = lower bound
+    add dx, bx  ; DX = lower bound + (upper bound - lower bound) / 2
+    
+    ; Call mergeSortRecursive for left half
+    push dx  ; Push mid index
+    call mergeSortRecursive
+    
+    pop dx  ; Pop mid index
+    
+    ; Call mergeSortRecursive for right half
+    mov ax, dx  ; Lower bound = mid index
+    inc ax  ; Lower bound = mid index + 1
+    mov dx, bp
+    add dx, 4  ; Upper bound
+    push ax  ; Push lower bound
+    call mergeSortRecursive
+    
+    pop dx  ; Pop lower bound
+    
+    ; Merge the two sorted halves
+    mov si, ax  ; Start of left half
+    mov di, dx  ; Start of right half
+    sub di, ax  ; Number of elements in right half = upper bound - mid index
+    inc di  ; Number of elements in right half
+    call mergeArrays
+    
+    endMergeSortRecursive:
+        pop dx
+        pop ax
+        pop bp
+        ret  ; Return
+
+mergeArrays proc
+    push bp
+    mov bp, sp
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    
+    ; Parameters:
+    ; bp + 12: Start of left half
+    ; bp + 10: Start of right half
+    ; bp + 8: Number of elements in right half
+    
+    mov si, bp
+    add si, 12  ; Start of left half
+    mov di, bp
+    add di, 10  ; Start of right half
+    mov cx, bp
+    add cx, 8  ; Number of elements in right half
+    
+    mergeLoop:
+        cmp cx, 0  ; Check if right half is empty
+        jz copyLeft  ; If empty, copy remaining elements from left half
+        
+        cmp si, di  ; Compare current elements from left and right halves
+        jge copyRight  ; If no more elements in left half, copy remaining from right half
+        
+        mov ax, [si]  ; Current element from left half
+        mov bx, [di]  ; Current element from right half
+        
+        cmp ax, bx
+        jle copyLeftElement  ; If element from left half <= element from right half, copy left element
+        
+        copyRightElement:
+            mov ax, [di]
+            mov [si], ax  ; Copy element from right half to merged array
+            add di, 2  ; Move to next element in right half
+            dec cx  ; Decrement count of elements in right half
+            jmp mergeLoop
+        
+        copyLeftElement:
+            mov ax, [si]
+            mov [si], ax  ; Copy element from left half to merged array
+            add si, 2  ; Move to next element in left half
+            jmp mergeLoop
+    
+    copyLeft:
+        mov ax, [di]
+        mov [si], ax  ; Copy remaining elements from right half to merged array
+        add di, 2  ; Move to next element in right half
+        dec cx  ; Decrement count of elements in right half
+        jmp mergeLoop
+    
+    copyRight:
+        mov ax, [si]
+        mov [si], ax  ; Copy remaining elements from left half to merged array
+        add si, 2  ; Move to next element in left half
+        jmp mergeLoop
+    
+    endMergeArrays:
+        pop di
+        pop si
+        pop dx
+        pop cx
+        pop bx
+        pop ax
+        pop bp
+        ret  ; Return
+
+mergeArrays endp
+mergeSortRecursive endp
+mergeSort endp
+
 end main
