@@ -3,336 +3,497 @@
 
 .data
 
-mesBad      db "File error $"
-handle      dw 0
-
-buffInd     db 0                 ; Index to keep track of the current position in buffer
-oneChar     db 0
-
-keys        db 5000*16 dup(0)
-keyInd      dw 0
-isWord      db 1
-values      db 5000*16 dup(0)
-valInd      dw 0
+file_error_message db "File error $"
+file_handle dw 0
+current_char db 0
+current_index dw 0
+new_key_index dw 0
+key_array db 10000*16 dup(0)
+temp_key_buffer db 16 dup(0)
+temp_key_buffer_index dw 0
+isWord db 1
+value_array dw 10000 dup(0)
+number_buffer db 16 dup(0)
+number_buffer_index dw 0
+quantity_array dw 3000 dup(0)
 
 .code
 main proc
     mov ax, @data
     mov ds, ax
-    jmp read_next
-     jc error                    ; Call routine to handle errors
 
-    mov [handle], ax            ; Save file handle for later
-; Read file and put characters into buffer
-read_next:
-    mov ah, 3Fh                 ; DOS Read File function number
-
-    mov bx, 0                   ; File handle
-
-    mov bx, 0           ; File handle
-
-    mov cx, 1                   ; 1 byte to read
-    mov dx, offset oneChar      ; Read to ds:dx 
-    int 21h                     ; AX = number of bytes read
-
-    push ax                     ; Preserve ax
-    call procChar               ; Process the read character
-    pop ax                      ; Restore ax
-
-    or ax, ax                   ; Check if ax is zero (end of file)
-    jnz read_next               ; If not zero, continue reading
-
-    ; Clean values last number
-    mov si, offset values
-    mov bx, valInd
-    dec bx
-    add si, bx
+    mov dx, offset input_filename
+    mov ah, 03Dh
     mov al, 0
-    mov [si], al
+    int 21h
 
-    ; Convert values to hexadecimal
-    jmp convert_values_to_hex
+    jc error
+        jmp cont
+    error:
+        mov ah, 09h
+        mov dx, offset file_error_message
+        int 21h
+        jmp ending
+    cont:
+        mov [file_handle], ax
 
-error:
-    mov ah, 09h                 ; DOS Display String function number
-    mov dx, offset mesBad
-    int 21h                     ; Display error message
+read_next:
+    mov ah, 3Fh
+    mov bx, [file_handle]
+    mov cx, 1
+    mov dx, offset current_char
+    int 21h
 
-
-procChar proc
-    cmp oneChar, 0Dh            ; Check if carriage return
-    jnz notCR                   ; If not CR, jump to notCR
-    mov isWord, 1               ; Change isWord to 1
-    jmp endProc
-
-notCR:
-    cmp oneChar, 0Ah            ; Check if line feed
-    jnz notLF                   ; If not LF, jump to notLF
-    mov isWord, 1               ; Change isWord to 1
-    jmp endProc
-
-notLF:
-    cmp oneChar, 20h            ; Check if space
-    jnz notSpace                ; If not space, jump to notSpace
-    mov isWord, 0               ; Change isWord to 0
-    jmp endProc
-
-notSpace:
-    cmp isWord, 0               ; Check if isWord is 0
-    jnz itsWord                 ; If not 0, jump to itsWord
-    ; Save char to values
-    mov si, offset values
-    mov bx, valInd
-    add si, bx
-    mov al, oneChar
-    mov [si], al
-    inc valInd
-    jmp endProc
-
-itsWord:
-    ; Save char to keys
-    mov si, offset keys
-    mov bx, keyInd 
-    add si, bx
-    mov al, oneChar
-    mov [si], al
-    inc keyInd 
-
-endProc:
-    ret
-procChar endp   
-
-convert_values_to_hex:
-    ; Convert values to hexadecimal
-    mov  cx, valInd             ; Initialize CX with the count of values
-    mov  si, offset values      ; Set SI to the beginning of the values array
-    mov  di, offset values      ; Set DI to the beginning of the values array
-
-convert_values_to_hex_loop:
-    mov  al, [si]   
-
-    cmp al, 0
-    je skip_conversion  
-    mov cl, al
-    mov ax, 0                   ; Clear AX (get rid of HO bits)
-
-  cmp al, 0
-  je skip_conversion  
-    mov cl, al
-     mov ax, 0                   ; Clear AX (get rid of HO bits)
-
-    mov cl, al             ; Load the value
-    call ascii_hex              ; Convert the value to hexadecimal
-    mov  [di], al               ; Store the hexadecimal character in the values buffer
-  skip_conversion:
-
-    inc si  ; Move to the next element in the buffer even if skipped
-    inc di  ; Move the destination pointer for the next conversion
-    loop convert_values_to_hex_loop                  ; Move to the next position in the values array
-
-  inc si  ; Move to the next element in the buffer even if skipped
-  inc di  ; Move the destination pointer for the next conversion
-loop convert_values_to_hex_loop                  ; Move to the next position in the values array
-
-
-    ; Calculate average
-    jmp calculate_average
-
-ascii_hex:
-    MOV BX, 16                  ; Set up the divisor (base 16)
-    MOV CX, 0                   ; Initialize the counter
-    MOV DX, 0                   ; Clear DX
-
-Div2:                                               ; Dividend (what's being divided) in DX/AX pair, Quotient in AX, Remainder in DX.
-    DIV BX                      ; Divide (will be word sized).
-    PUSH DX                     ; Save DX (the remainder) to stack.
-
-    ADD CX, 1                   ; Add one to counter
-    MOV DX, 0                   ; Clear Remainder (DX)
-    CMP AX, 0                   ; Compare Quotient (AX) to zero
-    JNE Div2                    ; If AX not 0, go to "Div2:"
-getHex2:
-    MOV DX, 0                   ; Clear DX.
-    POP DX                      ; Put top of stack into DX.
-    ADD DL, 30h                 ; Conv to character.
-
-    CMP DL, 39h
-    JG MoreHex2
-
-HexRet2:        
-    LOOP getHex2                ; If more to do, getHex2 again
-                                ; LOOP subtracts 1 from CX. If non-zero, loop.
-    JMP Skip2
-MoreHex2:
-    ADD DL, 7h
-    JMP HexRet2                 ; Return to where it left off before adding 7h.
-Skip2:
-    RET
-
-calculate_average:
-    ; Initialize variables
-    mov  cx, keyInd             ; Initialize CX with the count of keys
-    mov  si, offset keys        ; Set SI to the beginning of the keys array
-
-calculate_average_loop:
-    mov  ax, [si]               ; Load value from keys array
-    add  [si + 2], ax           ; Add value to corresponding key's sum
-    add  si, 4                  ; Move to next key and average slot
-    loop calculate_average_loop ; Repeat until all keys are processed
-
-    ; Now calculate the average for each key
-    mov  cx, keyInd             ; Reload CX with the count of keys
-    mov  si, offset keys        ; Reset SI to the beginning of the keys array
-
-calculate_average_avg:
-    mov  ax, [si + 2]           ; Load sum of values for the key
-    div  cx                      ; Divide sum by count to get average
-    mov  [si + 2], ax            ; Store the average back to the keys array
-    add  si, 4                   ; Move to next key and average slot
-    loop calculate_average_avg   ; Repeat until all keys are processed
-
-    ; ---------------- IN CASE MERGE SORT DOES NOT WORK, BUBBLE SORT IS COMMENTED HERE ----------------------
-; Bubble sort
- 
-   ; mov  si, offset keys        ; Set SI to the beginning of the keys array
-  ;  mov  cx, keyInd             ; Number of keys to process
- ;   dec  cx                     ; Set to count - 1 for loop control
-
-;outerLoop:
-;    push cx                     ; Preserve outer loop counter
-
-   ; lea  si, keys               ; Set SI to the beginning of the keys array
-  ;  lea  di, keys + 4           ; Set DI to the next key for comparison
- ;   mov  cx, keyInd - 1         ; Number of key pairs to compare
-
-;innerLoop:
-    ;mov  ax, [si + 2]           ; Load current key's average
-    ;mov  bx, [di + 2]           ; Load next key's average
-    ;cmp  ax, bx                 ; Compare averages
-    ;jge  nextPair               ; If current average is greater or equal, proceed to the next pair
-
-    ; Swap keys
-    ;mov  ax, [si]               ; Load current key into AX
-    ;mov  bx, [di]               ; Load next key into BX
-    ;mov  [si], bx               ; Store next key in current key's place
-    ;mov  [di], ax               ; Store current key in next key's place
-
-    ;mov  ax, [si + 2]           ; Load corresponding count of current key into AX
-    ;mov  bx, [di + 2]           ; Load corresponding count of next key into BX
-    ;mov  [si + 2], bx           ; Store next key's count in current key's place
-   ; mov  [di + 2], ax           ; Store current key's count in next key's place
-
-;nextPair:
-    ;add  si, 4                  ; Move to the next pair
-    ;add  di, 4                  ; Move to the next pair
-    ;loop innerLoop              ; Repeat until all key pairs are compared
-
-    ;pop  cx                     ; Restore outer loop counter
-   ; loop outerLoop              ; Repeat until outer loop counter is zero
-
-    ; Output the sorted keys
-  ;  mov  si, offset keys        ; Set SI to the beginning of sorted keys
- ;   mov  cx, keyInd             ; Number of keys to output
-
-;output_loop:      
-    ;mov  ax, [si]               ; Load key for output
-    ;add  dl, '0'                ; Convert back to ASCII
-    ;mov  ah, 02h                ; DOS function for displaying character
-    ;int  21h                    ; Display character
-
-    ; Debugging output to verify the content of the sorted keys buffer (optional)
-    ;mov  dl, ','                ; Delimiter for debugging output
-    ;int  21h                    ; Display delimiter
-
-    ;add  si, 4                  ; Move to next key
-    ;loop output_loop            ; Repeat until all keys are printed
-
-    ;jmp  exit_program           ; Terminate program
-
-
-;-------------------TRYING OUT MERGE SORT--------------------
-jmp merge
-merge:
-    
-    push ax             ; Preserve registers
+    push ax
     push bx
     push cx
     push dx
-    push si
-    push di
+    call procChar
 
-    mov si, sp          ; SI points to the start of the stack frame
-    add si, 4           ; SI now points to the size of the right half
-    mov di, [si]        ; DI = Size of the right half
-    add si, 2           ; SI now points to the middle index
-    add si, 2           ; SI now points to the address of the right half
-    mov bp, [si]        ; BP = Address of the right half
-    add si, 2           ; SI now points to the size of the left half
-    mov cx, [si]        ; CX = Size of the left half
-    add si, 2           ; SI now points to the address of the left half
-    mov ax, [si]        ; AX = Address of the left half
+;processing the characters
+push dx
+push cx
+push bx
+push ax
+    or ax, ax
+    jnz read_next
 
-    ; Create temporary storage for merged array
-    mov dx, cx          ; Copy size of left half
-    add dx, di          ; Add size of right half
-    push dx             ; Preserve the size of the merged array
-    mov ah, 0           ; Clear AH for later use
-    mov dl, 0           ; DL will be the index for the merged array
-mergeLoop:
-    cmp cx, 0           ; Check if left half is empty
-    je  mergeRightDone ; If so, jump to mergeRightDone
+    mov si, offset number_buffer
+    dec number_buffer_index
+    add si, number_buffer_index
+    mov [si], 0
 
-    cmp di, 0           ; Check if right half is empty
-    je  mergeLeftDone  ; If so, jump to mergeLeftDone
+    call trnInNum
+    call calcAvr
+    call sortArr
+    call writeArrays
 
-    mov al, [si]        ; Load value from left half into AL
-    xor ax, ax          ; Clear AX (set it to zero)
-    mov al, [si]        ; Load value from left half into AL again (to keep only lower 8 bits)
-    mov bx, [bp]        ; Load value from right half into BX
-    cmp ax, bx          ; Compare both values
-    jle mergeLeft       ; If left value is less than or equal, jump to mergeLeft
+    mov ah, 09h
+    mov dx, offset success_message
+    int 21h
 
-mergeRight:
-    mov [si], bx        ; Move value from right half to merged array
-    add bp, 1           ; Move to next element in right half
-    add si, 1           ; Move to next position in merged array
-    sub di, 1           ; Decrease size of right half
-    inc dl              ; Move index for merged array
-    loop mergeLoop      ; Repeat loop
-    jmp mergeLoop
+ending:
+    main endp
 
-mergeLeft:
-    mov [si], al        ; Move value from left half to merged array
-    add ax, 1           ; Move to next element in left half
-    add si, 1           ; Move to next position in merged array
-    sub cx, 1           ; Decrease size of left half
-    inc dl              ; Move index for merged array
-    loop mergeLoop      ; Repeat loop
+procChar proc
+    cmp current_char, 0Dh
+    jnz notCR
+    mov isWord, 1
+    call trnInNum
+    jmp endProc
+notCR:
+    cmp current_char, 0Ah
+    jnz notLF
+    mov isWord, 1
+    jmp endProc
+notLF:
+    cmp current_char, 20h
+    jnz notSpace
+    mov isWord, 0
+    call checkKey
+    jmp endProc
+notSpace:
+    cmp isWord, 0
+    jnz itsWord
+    mov si, offset number_buffer
+    mov bx, number_buffer_index
+    add si, bx
+    mov al, current_char
+    mov [si], al
+    inc number_buffer_index
+    jmp endProc
+itsWord:
+    mov si, offset temp_key_buffer
+    mov bx, temp_key_buffer_index
+    add si, bx
+    mov al, current_char
+    mov [si], al
+    inc temp_key_buffer_index
+endProc:
+    ret
+procChar endp
 
-mergeRightDone:
-    pop dx              ; Restore size of merged array
+trnInNum PROC
+    xor bx, bx
+    mov cx, 0
 
-mergeLeftDone:
-    mov si, dx          ; SI points to size of merged array
-    mov cx, si          ; CX = Size of merged array
-    pop si              ; Restore base address of merged array
+calcNum:
+    mov si, offset number_buffer
+    add si, number_buffer_index
+    dec si
+    sub si, cx
+    xor ax, ax
+    mov al, [si]
 
-    pop di              ; Restore registers
-    pop si
+    cmp ax, 45
+    jnz notMinus
+    neg bx
+    jmp afterCalc
+notMinus:
+    sub al, '0'
+
+    push cx
+    cmp cx, 0
+    jnz notZer
+    jmp endOFMul
+notZer:
+    mulByTen:
+    mov dx, 10
+    mul dx
+    dec cx
+    cmp cx, 0
+    jnz mulByTen
+
+endOFMul:
     pop cx
-    pop bx
-    pop ax
+    add bx, ax
+
+    inc cx
+    cmp cx, number_buffer_index
+    jnz calcNum
+
+afterCalc:
+    mov si, offset value_array
+    mov ax, current_index
+    shl ax, 1
+    add si, ax
+    add bx, [si]
+    mov [si], bx
+    mov number_buffer_index, 0
+    mov cx, 0
+
+    fillZeros:
+        mov si, offset number_buffer
+        add si, cx
+        mov [si], 0
+        inc cx
+        cmp cx, 9
+        jnz fillZeros
 
     ret
+trnInNum endp
+
+checkKey proc
+    mov ax, 0
+    mov bx, 0
+    mov cx, 0
+    mov dx, 0
+
+    cmp new_key_index, 0
+    jnz findKey
+    jmp addNewKey
+
+findKey:
+    mov dx, 0
+; check for keys
+    checkPresKey:
+        mov si, offset key_array
+        shl cx, 4
+        add si, cx
+        shr cx, 4
+        add si, dx
+        mov al, [si]
+        mov di, offset temp_key_buffer
+        add di, dx
+        mov ah, [di]
+        cmp al, ah
+        jne notEqualChar
+        mov bx, 1
+        jmp contComp
+    notEqualChar:
+        mov bx, 0
+        mov dx, 15
+    contComp:
+        inc dx
+        cmp dx, 16
+        jnz checkPresKey
+
+    cmp bx, 0
+    jnz keyPresent
+    inc cx
+    cmp cx, new_key_index
+    jne findKey
+
+    ;new key
+    addNewKey:
+        mov cx, 0
+
+;adding key loop
+        addNewKeyLoop:
+            mov si, offset temp_key_buffer
+            add si, cx
+            mov di, offset key_array
+            mov ax, new_key_index
+            shl ax, 4
+            add di, cx
+            add di, ax
+            mov al, [si]
+            mov [di], al
+            inc cx
+            cmp cx, 16
+            jnz addNewKeyLoop
+
+        mov cx, new_key_index
+        mov current_index, cx
+        inc new_key_index
+
+        mov si, offset quantity_array
+        mov cx, current_index
+        shl cx, 1
+        add si, cx
+        mov ax, 1
+        mov [si], ax
+
+        jmp endOfCheck
+
+keyPresent:
+;if key is in array
+    mov current_index, cx
+
+    mov si, offset quantity_array
+    mov cx, current_index
+    shl cx, 1
+    add si, cx
+    mov ax, [si]
+    inc ax
+    mov [si], ax
+
+endOfCheck:
+    mov temp_key_buffer_index, 0
+    mov cx, 0
+
+    fillZeroskey:
+        mov si, offset temp_key_buffer
+        add si, cx
+        mov [si], 0
+        inc cx
+        cmp cx, 15
+        jnz fillZeroskey
+
+    ret
+checkKey endp
+
+calcAvr proc
+    mov cx, 0
+
+calcAv:
+    mov si, offset value_array
+    shl cx, 1
+    add si, cx
+    mov di, offset quantity_array
+    add di, cx
+    shr cx, 1
+    mov ax, [si]
+    mov bx, [di]
+    mov dx, 0
+    div bx
+    mov [si], ax
+
+    inc cx
+    cmp cx, new_key_index
+    jnz calcAv
+
+    ret
+calcAvr endp
+
+writeArrays proc
+    mov cx, 0
+
+makeString:
+    mov ax, 0
+    mov current_index, ax
+    mov dx, 0
+    push cx
+
+    mov di, offset quantity_array
+    shl cx, 1
+    add di, cx
+    mov cx, [di]
+
+writeKey:
+    mov si, offset key_array
+    mov ax, cx
+    shl ax, 4
+    add si, ax
+    add si, current_index
+
+    mov ah, 02h
+    mov bx, dx
+    mov dl, [si]
+    cmp dl, 0
+    jne notEndOfKey
+    jmp gotoNumbPrint
+
+notEndOfKey:
+    int 21h
+    mov dx, bx
+    inc current_index
+    inc dx
+    cmp dx, 16
+    jnz writeKey
+
+gotoNumbPrint:
+    mov ah, 02h
+    mov dl, ' '
+    int 21h
+
+    push cx
+    call turnInChar
+    pop cx
+
+    call addMinus
+    mov dx, 0
+
+writeNumb:
+    mov si, offset number_buffer
+    add si, dx
+    mov bl, [si]
+
+    mov ah, 02h
+    push dx
+    mov dl, bl
+    int 21h
+    pop dx
+
+    inc dx
+    cmp dx, number_buffer_index
+    jnz writeNumb
+
+    mov ah, 02h
+    mov dl, 0dh
+    int 21h
+
+    mov ah, 02h
+    mov dl, 0ah
+    int 21h
+
+    pop cx
+    inc cx
+    cmp cx, new_key_index
+    jnz makeString
+
+    ret
+writeArrays endp
+
+turnInChar proc
+    pop dx
+    pop bx
+    shl bx, 1
+    mov ax, [value_array + bx]
+    cmp ax, 10000
+    jc positiveVal
+    neg ax
+
+positiveVal:
+    shr bx, 1
+    push bx
+    push dx
+
+    mov cx, 15
+
+makeChar:
+    mov dx, 0
+    mov bx, 10
+    div bx
+    mov si, offset temp_key_buffer
+    add si, cx
+    add dx, '0'
+    mov [si], dl
+    cmp ax, 0
+    jnz contSetNumb
+    mov bx, 16
+    mov number_buffer_index, bx
+    sub number_buffer_index, cx
+    jmp reverse_number
+
+contSetNumb:
+    dec cx
+    cmp cx, -1
+    jne makeChar
+
+reverse_number:
+    mov cx, 16
+    sub cx, number_buffer_index
+    mov dx, 0
+
+reverse:
+    mov si, offset temp_key_buffer
+    add si, cx
+    mov di, offset number_buffer
+    add di, dx
+    mov al, [si]
+    mov [di], al
+    inc dx
+    inc cx
+    cmp cx, 16
+    jnz reverse
+
+    ret
+turnInChar endp
+
+addMinus proc
+    mov bx, cx
+    shl bx, 1
+    mov ax, [value_array + bx]
+    cmp ax, 10000
+    jc positiveVal
+    mov ah, 02h
+    mov dl, '-'
+    int 21h
 
 
+addMinus endp
 
-    jmp  exit_program           ; Terminate program
+sortArr proc
+    pop dx
 
+    mov cx, 0
 
-exit_program:
-    mov ah, 4Ch               ; DOS Terminate Program function number
-    int 21h                     ; Terminate program
+fillArrayOfPoint:
+    mov di, offset quantity_array
+    shl cx, 1
+    add di, cx
+    shr cx, 1
+    mov [di], cx
+    inc cx
+    cmp cx, new_key_index
+    jnz fillArrayOfPoint
 
-main endp
+    mov cx, word ptr new_key_index
+    dec cx
+
+outerLoop:
+    push cx
+    lea si, quantity_array
+
+innerLoop:
+    mov ax, [si]
+    push ax
+    shl ax, 1
+    add ax, offset value_array
+    mov di, ax
+    mov ax, [di]
+    mov bx, [si + 2]
+    push bx
+    shl bx, 1
+    add bx, offset value_array
+    mov di, bx
+    mov bx, [di]
+    cmp ax, bx
+    pop bx
+    pop ax
+    jl nextStep
+    xchg bx, ax
+    mov [si], ax
+    mov [si + 2], bx
+
+nextStep:
+    add si, 2
+    loop innerLoop
+    pop cx
+    loop outerLoop
+
+    push dx
+    ret
+sortArr endp
 end main
