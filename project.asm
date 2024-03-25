@@ -2,139 +2,150 @@
 .stack 100h
 
 .data
-
-file_error_message db "File error $"
-file_handle dw 0
-current_char db 0
-current_index dw 0
-new_key_index dw 0
-key_array db 10000*16 dup(0)
-temp_key_buffer db 16 dup(0)
-temp_key_buffer_index dw 0
+oneChar db 0
+presInd dw 0
+newInd dw 0
+keys db 10000*16 dup(0) ;buffer for keys
+keyTemp db 16 dup(0) ;temporarily biffer to store keys from the beginning
+keyTempInd dw 0
 isWord db 1
-value_array dw 10000 dup(0)
-number_buffer db 16 dup(0)
-number_buffer_index dw 0
-quantity_array dw 3000 dup(0)
+values dw 10000 dup(0)
+number db 16 dup(0)
+numberInd dw 0
+quantity dw 3000 dup(0)
 
 .code
 main proc
     mov ax, @data
     mov ds, ax
 
-   
-    mov ah, 03Dh
-    mov al, 0
-    int 21h
-
-    jc error
-        jmp cont
-    error:
-        mov ah, 09h
-        mov dx, offset file_error_message
-        int 21h
-        jmp ending
-    cont:
-        mov [file_handle], ax
-
+;read stdin and put characters into keyTemp or number
 read_next:
     mov ah, 3Fh
-    mov bx, [file_handle]
-    mov cx, 1
-    mov dx, offset current_char
-    int 21h
+    mov bx, 0  ; file handle
+    mov cx, 1   ; 1 byte to read
+    mov dx, offset oneChar   ; read to ds:dx 
+    int 21h   ;  ax = number of bytes read
+    ; do something with [oneChar]
 
+    ;save ax
     push ax
-    push bx
-    push cx
-    push dx
-    call procChar
 
-pop dx
-pop cx
-pop bx
+    call procChar ;process char
 pop ax
-    or ax, ax
+    or ax,ax
     jnz read_next
-
-    mov si, offset number_buffer
-    dec number_buffer_index
-    add si, number_buffer_index
-    mov [si], 0
-
-    call trnInNum
-    call calcAvr
-    call sortArr
-    call writeArrays
-
-    mov ah, 09h
-    int 21h
+;remove last char in number
+    mov si, offset number
+    dec numberInd
+    add si, numberInd
+    mov [si],0
+    ;turn it into number
+    call convInNum
+ ;calculate average value
+ call calcAverage   
+ call sortArr
+ call writeArrays
 
 ending:
-    main endp
+mov ax, 4C00h
+    int 21h
+main endp
+
 
 procChar proc
-    cmp current_char, 0Dh
-    jnz notCR
-    mov isWord, 1
-    call trnInNum
-    jmp endProc
-notCR:
-    cmp current_char, 0Ah
-    jnz notLF
-    mov isWord, 1
-    jmp endProc
-notLF:
-    cmp current_char, 20h
-    jnz notSpace
-    mov isWord, 0
-    call checkKey
-    jmp endProc
-notSpace:
-    cmp isWord, 0
-    jnz itsWord
-    mov si, offset number_buffer
-    mov bx, number_buffer_index
-    add si, bx
-    mov al, current_char
-    mov [si], al
-    inc number_buffer_index
-    jmp endProc
-itsWord:
-    mov si, offset temp_key_buffer
-    mov bx, temp_key_buffer_index
-    add si, bx
-    mov al, current_char
-    mov [si], al
-    inc temp_key_buffer_index
-endProc:
-    ret
-procChar endp
+    ; Compare the value of oneChar with the ASCII code for carriage return (CR)
+    cmp oneChar, 0Dh
+    jnz notCR  ; Jump if not equal to CR
 
-trnInNum PROC
-    xor bx, bx
-    mov cx, 0
+    ; Change isWord to 1 if it's currently 0
+    cmp isWord, 0
+    jne endProc  ; Jump to end if isWord is not 0 (already 1)
+    mov isWord, 1  ; Set isWord to 1
+    call convInNum  ; Call the trnInNum procedure to process the character as a number
+    jmp endProc  ; Jump to end
+
+notCR:
+    ; Compare oneChar with the ASCII code for line feed (LF)
+    cmp oneChar, 0Ah
+    jnz notLF  ; Jump if not equal to LF
+
+    ; Change isWord to 1 if it's currently 0
+    cmp isWord, 0
+    jnz endProc  ; Jump to end if isWord is already 1
+    mov isWord, 1  ; Set isWord to 1
+    call convInNum  ; Call the trnInNum procedure to process the character as a number
+    jmp endProc  ; Jump to end
+
+notLF:
+    ; Compare oneChar with space (ASCII code 20h)
+    cmp oneChar, 20h
+    jnz notSpace  ; Jump if not equal to space
+
+    ; Set isWord to 0 since it's not a number
+    mov isWord, 0
+    ; Check if the entered character is part of a key
+    call checkKey  ; Call checkKey procedure to handle key checking
+    jmp endProc  ; Jump to end
+
+notSpace:
+    ; Check if isWord is 0
+    cmp isWord, 0
+    jnz itsWord  ; Jump if isWord is 1 (meaning the character is part of a word)
+
+    ; Save the character to the number array
+    mov si, offset number  ; Load address of number array
+    mov bx, numberInd  ; Load current index in number array
+    add si, bx  ; Move to the next position in the number array
+    mov al, oneChar  ; Move the character to AL register
+    mov [si], al  ; Save the character in the number array
+    inc numberInd  ; Increment the index for the next character
+    jmp endProc  ; Jump to end
+
+itsWord:
+    ; Save the character to the keyTemp array
+    mov si, offset keyTemp  ; Load address of keyTemp array
+    mov bx, keyTempInd  ; Load current index in keyTemp array
+    add si, bx  ; Move to the next position in the keyTemp array
+    mov al, oneChar  ; Move the character to AL register
+    mov [si], al  ; Save the character in the keyTemp array
+    inc keyTempInd  ; Increment the index for the next character
+
+endProc:
+    ret  
+procChar endp  ; End of procChar procedure
+
+convInNum PROC
+    ; Initialize registers for number conversion
+    xor bx, bx  ; Clear BX register (used for number storage)
+    mov cx, 0   ; Clear CX register (used for iteration)
 
 calcNum:
-    mov si, offset number_buffer
-    add si, number_buffer_index
-    dec si
-    sub si, cx
-    xor ax, ax
-    mov al, [si]
+    ; Calculate the position of the next character in the number array
+    mov si, offset number  ; Load address of number array
+    add si, numberInd     ; Add the current index to get the last character of this number
+    dec si                ; Move to the previous character
+    sub si, cx            ; Adjust for the next character position
 
+    ; Read the character
+    xor ax, ax      ; Clear AX register
+    mov al, [si]    ; Load the character into AL register
+
+    ; Test if the character is '-'
     cmp ax, 45
-    jnz notMinus
-    neg bx
-    jmp afterCalc
-notMinus:
-    sub al, '0'
+    jnz notMinus  ; Jump if not a minus sign
+        neg bx     ; Negate BX to turn it into a negative number
+        jmp afterCalc  ; Jump to afterCalc
 
+    notMinus:
+    sub al, '0'  ; Convert the character into its numerical value
+
+    ; Get the real number by multiplying it by 10
     push cx
     cmp cx, 0
     jnz notZer
     jmp endOFMul
-notZer:
+    notZer:
     mulByTen:
     mov dx, 10
     mul dx
@@ -142,519 +153,319 @@ notZer:
     cmp cx, 0
     jnz mulByTen
 
-endOFMul:
+    endOFMul:
     pop cx
-    add bx, ax
+    add bx, ax  ; Add the current number to the result
 
-    inc cx
-    cmp cx, number_buffer_index
-    jnz calcNum
+    inc cx  ; Increment the counter
+    cmp cx, numberInd  ; Compare with the number of digits
+    jnz calcNum  ; Jump to calcNum if not all digits processed
 
 afterCalc:
-    mov si, offset value_array
-    mov ax, current_index
-    shl ax, 1
-    add si, ax
-    add bx, [si]
-    mov [si], bx
-    mov number_buffer_index, 0
-    mov cx, 0
+    ; Save the number into the values array
+    mov si, offset values  ; Load address of values array
+    mov ax, presInd  ; Load the index of the current number
+    shl ax, 1  ; Calculate the real index in values array
+    add si, ax  ; Add the real index to get the address in values array
+    add bx, [si]  ; Add the previously saved number
+    mov [si], bx  ; Save the new number into the values array
 
+    ; Reset variables for the next number
+    mov numberInd, 0  ; Reset the number index
+    mov cx, 0         ; Reset the counter
+
+    ; Fill the number array with zeros for the next number
     fillZeros:
-        mov si, offset number_buffer
-        add si, cx
-        mov [si], 0
-        inc cx
-        cmp cx, 9
-        jnz fillZeros
+    mov si, offset number  ; Load address of number array
+    add si, cx  ; Move to the next position
+    mov [si], 0  ; Fill with zero
+    inc cx  ; Increment the counter
+    cmp cx, 9  ; Check if all positions filled (up to 9 digits)
+    jnz fillZeros  ; Jump to fillZeros if not all positions filled
 
-    ret
-trnInNum endp
+ret  ; Return from the procedure
+convInNum endp  ; End of trnInNum procedure
+
 
 checkKey proc
-    mov ax, 0
-    mov bx, 0
+    mov ax,0
+    mov bx, 0; presence of key
     mov cx, 0
-    mov dx, 0
-
-    cmp new_key_index, 0
+    mov dx,0
+    ;check if keyInd is 0
+    cmp newInd,0
     jnz findKey
-    jmp addNewKey
-
-findKey:
-    mov dx, 0
-; check for keys
-    checkPresKey:
-        mov si, offset key_array
+jmp addNewKey  
+    findKey:
+    mov dx,0
+        checkPresKey:
+        mov si, offset keys
         shl cx, 4
         add si, cx
-        shr cx, 4
-        add si, dx
-        mov al, [si]
-        mov di, offset temp_key_buffer
-        add di, dx
-        mov ah, [di]
-        cmp al, ah
+        shr cx,4
+        add si, dx; next char offset
+        mov al,[si]; next char
+        mov di, offset keyTemp
+        add di,dx
+        mov ah, [di]; next char in keyTemp
+        cmp al,ah
         jne notEqualChar
-        mov bx, 1
-        jmp contComp
-    notEqualChar:
-        mov bx, 0
-        mov dx, 15
-    contComp:
-        inc dx
-        cmp dx, 16
-        jnz checkPresKey
-
-    cmp bx, 0
-    jnz keyPresent
+            mov bx,1; this char present in current key
+            jmp contComp
+            notEqualChar:
+            mov bx,0; this char dont present in current key
+            mov dx, 15; go to next key
+        contComp:
+            inc dx
+            cmp dx,16
+            jnz checkPresKey
+        ;check if key is present   
+    cmp bx,0
+    jnz keyPresent 
     inc cx
-    cmp cx, new_key_index
+    cmp cx, newInd
     jne findKey
-
-    ;new key
+ ;   new key
+    ;add new key to key array
+    mov cx, 0  ; counter
     addNewKey:
-        mov cx, 0
-
-;adding key loop
-        addNewKeyLoop:
-            mov si, offset temp_key_buffer
-            add si, cx
-            mov di, offset key_array
-            mov ax, new_key_index
-            shl ax, 4
-            add di, cx
-            add di, ax
-            mov al, [si]
-            mov [di], al
-            inc cx
-            cmp cx, 16
-            jnz addNewKeyLoop
-
-        mov cx, new_key_index
-        mov current_index, cx
-        inc new_key_index
-
-        mov si, offset quantity_array
-        mov cx, current_index
-        shl cx, 1
-        add si, cx
-        mov ax, 1
-        mov [si], ax
-
-        jmp endOfCheck
+    
+    mov si, offset keyTemp   ; addr of source
+    add si, cx
+    mov di, offset keys  ; addr of dest
+    mov ax,  newInd
+    shl ax,4 
+    add di,cx
+    add di, ax ; addr of dest
+    mov al, [si]
+    mov [di], al 
+    inc cx
+    cmp cx, 16
+    jnz addNewKey
+    mov cx, newInd
+    mov presInd,cx
+    inc newInd
+     ; set new 1 to array of quantities
+ ;add to quantity one
+    mov si, offset quantity
+    mov cx, presInd
+    shl cx,1
+    add si, cx
+    mov ax,1
+    mov [si],ax
+    jmp endOfCheck;goto end
 
 keyPresent:
-;if key is in array
-    mov current_index, cx
-
-    mov si, offset quantity_array
-    mov cx, current_index
-    shl cx, 1
+    ;key index in cx
+    ;add 1 to this index
+    mov presInd,cx
+    ;add to quantity one
+    mov si, offset quantity
+    mov cx, presInd
+    shl cx,1
     add si, cx
     mov ax, [si]
     inc ax
-    mov [si], ax
-
+    mov [si],ax
 endOfCheck:
-    mov temp_key_buffer_index, 0
-    mov cx, 0
-
-    fillZeroskey:
-        mov si, offset temp_key_buffer
-        add si, cx
-        mov [si], 0
-        inc cx
-        cmp cx, 15
-        jnz fillZeroskey
-
+   ;fill temp key by 0
+    mov keyTempInd,0
+    mov cx,0
+  fillZeroskey:
+    mov si, offset keyTemp
+    add si, cx
+    mov [si],0
+    inc cx
+    cmp cx,15
+    jnz fillZeroskey  
     ret
 checkKey endp
 
-calcAvr proc
-    mov cx, 0
 
+calcAverage proc
+
+mov cx,0;counter
 calcAv:
-    mov si, offset value_array
-    shl cx, 1
-    add si, cx
-    mov di, offset quantity_array
-    add di, cx
-    shr cx, 1
-    mov ax, [si]
-    mov bx, [di]
-    mov dx, 0
-    div bx
-    mov [si], ax
+mov si, offset values
+shl cx,1
+add si,cx; next number
 
-    inc cx
-    cmp cx, new_key_index
-    jnz calcAv
+mov di, offset quantity
+add di, cx;present quantity of this number
+shr cx,1
+mov ax, [si]; mov number to ax
+mov bx, [di]; mov quantity to dx
+mov dx,0
+div bx; get average of these numbers
+mov [si], ax; put average to values
+inc cx
+cmp cx, newInd
+jnz calcAv
 
-    ret
-calcAvr endp
+ret
+calcAverage endp
 
 writeArrays proc
-    mov cx, 0
-
+mov cx,0
 makeString:
-    mov ax, 0
-    mov current_index, ax
-    mov dx, 0
-    push cx
-
-    mov di, offset quantity_array
-    shl cx, 1
-    add di, cx
+mov ax,0
+mov presInd,ax
+mov dx,0
+push cx
+    mov di, offset quantity
+    shl cx,1
+    add di,cx;get index of numbers
     mov cx, [di]
-
-writeKey:
-    mov si, offset key_array
-    mov ax, cx
-    shl ax, 4
+    writeKey:
+    mov si, offset keys
+    mov ax,0
+    mov ax, cx; index of cell
+    shl ax, 4; real index of cell
     add si, ax
-    add si, current_index
-
+    add si, presInd
+    ;write char
     mov ah, 02h
-    mov bx, dx
+    mov bx,dx; save counter to bx
     mov dl, [si]
-    cmp dl, 0
-    jne notEndOfKey
-    jmp gotoNumbPrint
+    cmp dl, 0 
 
-notEndOfKey:
+    jne notEndOfKey
+        jmp gotoNewLine
+    notEndOfKey:
     int 21h
-    mov dx, bx
-    inc current_index
+    mov dx,bx
+    inc presInd
     inc dx
     cmp dx, 16
     jnz writeKey
-
-gotoNumbPrint:
+gotoNewLine:
+;go to new line
     mov ah, 02h
-    mov dl, ' '
-    int 21h
+mov dl, 0dh
+int 21h
+ mov ah, 02h
+mov dl, 0ah
+int 21h
+;check if its not the last key-average
+pop cx
+inc cx
+cmp cx, newInd
+jnz makeString
 
-    push cx
-    call turnInChar
-    pop cx
-
-    call addMinus
-    mov dx, 0
-
-writeNumb:
-    mov si, offset number_buffer
-    add si, dx
-    mov bl, [si]
-
-    mov ah, 02h
-    push dx
-    mov dl, bl
-    int 21h
-    pop dx
-
-    inc dx
-    cmp dx, number_buffer_index
-    jnz writeNumb
-
-    mov ah, 02h
-    mov dl, 0dh
-    int 21h
-
-    mov ah, 02h
-    mov dl, 0ah
-    int 21h
-
-    pop cx
-    inc cx
-    cmp cx, new_key_index
-    jnz makeString
-
-    ret
+ret
 writeArrays endp
 
 turnInChar proc
-    pop dx
-    pop bx
-    shl bx, 1
-    mov ax, [value_array + bx]
-    cmp ax, 10000
-    jc positiveVal
+pop dx
+pop bx; get index
+shl bx,1
+mov ax, [values+bx]; get in ax number
+cmp ax, 10000 
+jc positive ;Jump to positive if ax is less than 10000
     neg ax
-
-positiveVal:
-    shr bx, 1
-    push bx
-    push dx
-
-    mov cx, 15
-
+positive:
+shr bx, 1
+push bx
+push dx
+mov cx,15;number ind
 makeChar:
-    mov dx, 0
-    mov bx, 10
-    div bx
-    mov si, offset temp_key_buffer
-    add si, cx
-    add dx, '0'
-    mov [si], dl
+    mov dx,0
+    mov bx,10
+    div bx; remainder in dx, quontient in ax
+    mov si, offset keyTemp
+    add si, cx; location to write
+    add dx, '0' ;Convert remainder to ASCII character
+    mov [si], dl ; Store ASCII character in keyTemp
     cmp ax, 0
     jnz contSetNumb
-    mov bx, 16
-    mov number_buffer_index, bx
-    sub number_buffer_index, cx
-    jmp reverse_number
-
-contSetNumb:
+        mov bx, 16
+        mov numberInd, bx
+        sub numberInd, cx
+        jmp reverse_number
+    contSetNumb:
     dec cx
     cmp cx, -1
-    jne makeChar
-
+    jne makeChar  
+;we wrote number into chars
 reverse_number:
-    mov cx, 16
-    sub cx, number_buffer_index
-    mov dx, 0
-
+mov cx, 16
+sub cx, numberInd
+mov dx,0
 reverse:
-    mov si, offset temp_key_buffer
-    add si, cx
-    mov di, offset number_buffer
+    mov si, offset keyTemp
+    add si, cx ;Move to the location in keyTemp
+    mov di, offset number
     add di, dx
-    mov al, [si]
-    mov [di], al
+    mov al,[si] ;Load character from keyTemp into al
+    mov [di], al ;Store character in number
     inc dx
     inc cx
-    cmp cx, 16
+    cmp cx,16
     jnz reverse
-
-    ret
+ret
 turnInChar endp
 
 addMinus proc
-    mov bx, cx
-    shl bx, 1
-    mov ax, [value_array + bx]
-    cmp ax, 10000
-    jc positiveVal
-    mov ah, 02h
-    mov dl, '-'
+mov bx,cx
+shl bx,1
+mov ax, [values+bx]; get in ax number
+cmp ax, 10000
+jc positiveVal
+    mov ah,02h
+    mov dl, '-' ;Print '-' using DOS interrupt 21h
     int 21h
-
-
+positiveVal:
+ret
 addMinus endp
 
 sortArr proc
-    pop dx
+pop dx; save address
+;set array of pointers
+mov cx,0
+fillArrayFinal:
 
-    mov cx, 0
-
-fillArrayOfPoint:
-    mov di, offset quantity_array
-    shl cx, 1
-    add di, cx
-    shr cx, 1
-    mov [di], cx
+    
+    mov di, offset quantity
+    shl cx,1 ; Multiply cx by 2 (index calculation)
+    add di,cx
+    shr cx,1    
+    mov [di],cx;mov to quantity address of next value
     inc cx
-    cmp cx, new_key_index
-    jnz fillArrayOfPoint
+    cmp cx, newInd
+    jnz fillArrayFinal
 
-    mov cx, word ptr new_key_index
-    dec cx
-
+;sort array of pointers
+mov cx, word ptr newInd
+    dec cx  ; count-1
 outerLoop:
     push cx
-    lea si, quantity_array
-
+    lea si, quantity
 innerLoop:
-    mov ax, [si]
-    push ax
-    shl ax, 1
-    add ax, offset value_array
+    mov ax, [si];get index
+    push ax; remember index of numb
+    shl ax,1; get index in values
+    add ax,offset values;get address of values
     mov di, ax
     mov ax, [di]
-    mov bx, [si + 2]
-    push bx
-    shl bx, 1
-    add bx, offset value_array
-    mov di, bx
+    mov bx, [si+2];get next index
+    push bx; remember index of next numb
+    shl bx,1; get next index in values
+    add bx,offset values
+   mov di, bx
     mov bx, [di]
-    cmp ax, bx
+    cmp ax, bx;compare value with next value
     pop bx
     pop ax
-    jl nextStep
+    jg nextStep
     xchg bx, ax
     mov [si], ax
-    mov [si + 2], bx
-
+    MOV [si+2],bx
 nextStep:
     add si, 2
     loop innerLoop
     pop cx
     loop outerLoop
-
-    push dx
-    call mergeSort  ; Call merge sort instead of sortArr
-    ret
+push dx
+ret
 sortArr endp
-
-mergeSort proc
-    ; Check if the array has more than one element
-    mov ax, new_key_index
-    cmp ax, 1
-    jle endMergeSort  ; If 1 or 0 elements, no sorting needed
-
-    ; Calculate mid index
-    mov bx, 2
-    div bx  ; AX = new_key_index / 2 (mid index)
-    
-    ; Set up parameters for mergeSortRecursive
-    push ax  ; Push mid index
-    mov ax, 0  ; Lower bound
-    mov dx, new_key_index  ; Upper bound
-    dec dx  ; Upper bound - 1 (array indexing starts from 0)
-    
-    ; Call mergeSortRecursive for left and right halves
-    call mergeSortRecursive
-    
-    pop ax  ; Pop mid index
-    
-    ; Merge the two sorted halves
-    mov si, offset value_array  ; Start of array
-    mov di, offset quantity_array  ; Start of quantity array
-    mov cx, new_key_index  ; Number of elements
-    call mergeArrays
-    
-    endMergeSort:
-        ret
-
-mergeSortRecursive proc
-    push bp
-    mov bp, sp
-    push ax
-    push dx
-    
-    ; Parameters:
-    ; bp + 6: Lower bound
-    ; bp + 4: Upper bound
-    
-    mov ax, bp
-    add ax, 6  ; Lower bound
-    mov bx, bp
-    add bx, 4  ; Upper bound
-    
-    cmp ax, bx
-    jge endMergeSortRecursive  ; If lower bound >= upper bound, return
-    
-    ; Calculate mid index
-    sub bx, ax  ; Upper bound - lower bound
-    mov cx, 2
-    div cx  ; BX = (upper bound - lower bound) / 2
-    
-    ; Calculate mid index: (upper bound + lower bound) / 2
-    mov dx, ax  ; DX = lower bound
-    add dx, bx  ; DX = lower bound + (upper bound - lower bound) / 2
-    
-    ; Call mergeSortRecursive for left half
-    push dx  ; Push mid index
-    call mergeSortRecursive
-    
-    pop dx  ; Pop mid index
-    
-    ; Call mergeSortRecursive for right half
-    mov ax, dx  ; Lower bound = mid index
-    inc ax  ; Lower bound = mid index + 1
-    mov dx, bp
-    add dx, 4  ; Upper bound
-    push ax  ; Push lower bound
-    call mergeSortRecursive
-    
-    pop dx  ; Pop lower bound
-    
-    ; Merge the two sorted halves
-    mov si, ax  ; Start of left half
-    mov di, dx  ; Start of right half
-    sub di, ax  ; Number of elements in right half = upper bound - mid index
-    inc di  ; Number of elements in right half
-    call mergeArrays
-    
-    endMergeSortRecursive:
-        pop dx
-        pop ax
-        pop bp
-        ret  ; Return
-
-mergeArrays proc
-    push bp
-    mov bp, sp
-    push ax
-    push bx
-    push cx
-    push dx
-    push si
-    push di
-    
-    ; Parameters:
-    ; bp + 12: Start of left half
-    ; bp + 10: Start of right half
-    ; bp + 8: Number of elements in right half
-    
-    mov si, bp
-    add si, 12  ; Start of left half
-    mov di, bp
-    add di, 10  ; Start of right half
-    mov cx, bp
-    add cx, 8  ; Number of elements in right half
-    
-    mergeLoop:
-        cmp cx, 0  ; Check if right half is empty
-        jz copyLeft  ; If empty, copy remaining elements from left half
-        
-        cmp si, di  ; Compare current elements from left and right halves
-        jge copyRight  ; If no more elements in left half, copy remaining from right half
-        
-        mov ax, [si]  ; Current element from left half
-        mov bx, [di]  ; Current element from right half
-        
-        cmp ax, bx
-        jle copyLeftElement  ; If element from left half <= element from right half, copy left element
-        
-        copyRightElement:
-            mov ax, [di]
-            mov [si], ax  ; Copy element from right half to merged array
-            add di, 2  ; Move to next element in right half
-            dec cx  ; Decrement count of elements in right half
-            jmp mergeLoop
-        
-        copyLeftElement:
-            mov ax, [si]
-            mov [si], ax  ; Copy element from left half to merged array
-            add si, 2  ; Move to next element in left half
-            jmp mergeLoop
-    
-    copyLeft:
-        mov ax, [di]
-        mov [si], ax  ; Copy remaining elements from right half to merged array
-        add di, 2  ; Move to next element in right half
-        dec cx  ; Decrement count of elements in right half
-        jmp mergeLoop
-    
-    copyRight:
-        mov ax, [si]
-        mov [si], ax  ; Copy remaining elements from left half to merged array
-        add si, 2  ; Move to next element in left half
-        jmp mergeLoop
-    
-    endMergeArrays:
-        pop di
-        pop si
-        pop dx
-        pop cx
-        pop bx
-        pop ax
-        pop bp
-        ret  ; Return
-
-mergeArrays endp
-mergeSortRecursive endp
-mergeSort endp
-
 end main
