@@ -10,6 +10,6 @@ Each line is a pair "<key> <value>" (separated by a space), where the key is a t
 </ol>
 
 <h2>TESTING</h2>
-I input the content from the file "test.in" into console to check and test.
-To debug I use "debug ASM" and with F9 look for the errors.
-I don`t exactly know, where the problem is, but I assume it is in the "splitting" keys and values into two arrays is.
+Dosbox-x and dosbox do not work. Thus, jsdos is used in testing.
+I input files V3TEST1.IN, V3TEST2.in, V3TEST3.in and the content is transfered to console. Then te code functions and outputes the results.
+TESTS ARE PASSED
